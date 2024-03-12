@@ -218,6 +218,31 @@ class Common_Mode_Estimate(Estimate):
         self.worst_attenuation = np.minimum(np.abs(attenuation_w_min_noise),np.abs(attenuation_w_max_noise))
         return
     
+    #------------------------------------------------------------------------------------------------------------------------------------------------
+    def LC_topology_helper(self, Z_noise_source: np.ndarray) -> np.ndarray:
+        no_filter = self.R_lisn / (self.R_lisn + Z_noise_source)
+        Z_lisn_choke = self.R_lisn + self.Z_choke
+        Z_lisn_choke_y = self.parallel_eqv(Z_lisn_choke, self.Z_cap)
+        filter = (Z_lisn_choke_y/(Z_lisn_choke_y + Z_noise_source))*(self.R_lisn/(self.R_lisn + self.Z_choke))
+        attenuation = no_filter/filter
+        return np.abs(attenuation)
+    
+    # handles calculations for a LC CM EMI circuit
+    def LC_topology(self, y_cap: float, cm_choke: Choke):
+        # Recall that in the CM equivalent circuit, both y caps are in parallel...
+        self.Z_cap = -1j / (2*math.pi*self.freq*y_cap*2)
+        self.Z_choke = cm_choke.impedance
+
+        # Calculate attenuation for CL topology using mean noise
+        self.mean_attenuation = self.LC_topology_helper(self.mean_noise)
+
+        # Calculate attenuation for CL topology, using max/min noise and choosing the worst case result
+        attenuation_w_min_noise = self.LC_topology_helper(self.min_noise)
+        attenuation_w_max_noise = self.LC_topology_helper(self.max_noise)
+        self.worst_attenuation = np.minimum(np.abs(attenuation_w_min_noise),np.abs(attenuation_w_max_noise))
+        return
+    #---------------------------------------------------------------------------------------------------------------------------------------------------------
+
     # Helps calculate the necessary choke impedance for a specific noise source impedance.
     def find_Z_choke_helper(self, Z_noise_source: np.ndarray) -> np.ndarray:
         A = np.abs((self.needed_attenuation * (self.R_lisn + Z_noise_source) * self.parallel_eqv(self.R_lisn, self.Z_cap)) / self.R_lisn)
@@ -300,6 +325,35 @@ class Differential_Mode_Estimate(Estimate):
         A_max_noise = self.PI_topology_helper(self.max_noise)
         self.worst_attenuation = np.minimum(np.abs(A_min_noise),np.abs(A_max_noise))
         return
+    
+     # Helps calculate the attenuation when two x caps are used ----------------------------------------------------------------------
+    def CLC_topology_helper(self, Z_noise_source:np.ndarray):
+        no_filter = self.R_lisn / (self.R_lisn + Z_noise_source)
+        R_Z_x = self.parallel_eqv(self.R_lisn, self.Z_x_1_cap)
+        Zxy = self.parallel_eqv(self.Z_y_cap, self.Z_x_2_cap)
+        Z_l_x_leak = R_Z_x + self.Z_leakage 
+        Z_l_x_leak_y_x = self.parallel_eqv(Z_l_x_leak, Zxy)
+        filter = (Z_l_x_leak_y_x / (Z_l_x_leak_y_x + Z_noise_source))*(R_Z_x / (R_Z_x + self.Z_leakage))
+        A = no_filter / filter
+        return np.abs(A)
+    
+    # handles calculations for a PI DM EMI circuit, using y caps and leakage inductance
+    def PI2_topology(self, x_cap: float, y_cap:float, choke_leakage:Choke):
+        self.Z_x_cap = -1j / (2*math.pi*self.freq*x_cap)
+        # y caps will be in series for the DM equiv circuit...
+        self.Z_y_cap = -1j / (2*math.pi*self.freq*y_cap/2)
+        self.Z_leakage = choke_leakage.impedance
+
+        # Calculate attenuation for PI topology using mean noise
+        self.mean_attenuation = self.CLC_topology_helper(self.mean_noise)
+
+        # Calculate attenuation for PI topology, using max/min noise and choosing the worst case result
+        A_min_noise = self.CLC_topology_helper(self.min_noise)
+        A_max_noise = self.CLC_topology_helper(self.max_noise)
+        self.worst_attenuation = np.minimum(np.abs(A_min_noise),np.abs(A_max_noise))
+        return
+    #----------------------------------------------------------------------------------------------------------------------------------------------
+
     
     # Helps calculate the X cap impedance for a specific noise source impedance.
     def find_Z_x_helper(self, Z_noise_source:np.ndarray):

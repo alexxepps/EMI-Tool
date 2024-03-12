@@ -30,6 +30,8 @@ Cap_Dict = {"pF" : (10 ** -12), "nF" : (10 ** -9), "uF" : (10 ** -6)}
 Ind_Dict = {"uH" : (10 ** -6), "mH" : (10 ** -3), "H" : (10 ** 0)}
 Freq_Dict =  {"Hz" : (10 ** 0), "kHz" : (10 ** 3), "MHz" : (10 ** 6)}
 Imp_Dict = {"Ohm" : (10 ** 0), "kOhm" : (10 ** 3), "MOhm" : (10 ** 6)}
+CM_Topo = None
+DM_Topo = None
 
 # Main GUI wrapper
 class GUI():
@@ -273,8 +275,23 @@ class NoiseImpedanceWindow(Window):
         label = ttk.Label(option_frame, text="Note - the CM Choke tab on the right can be used to visualize the model after noise impedance has been calculated.")
         label.pack()
 
+        #added option for LC or CL filter for CM emi filter------------------------------------------------------------------------------
+        label = ttk.Label(option_frame, text="Was a CM CL or LC filter used? C is the Ycap.")
+        label.pack()
+        #-----------------------------------------------------------------------------------------------------------------------------------
+
+
         #enter the filter details
         filter_frame = ttk.Frame(option_frame)
+
+        #buttons that choose CM LC or CL filter------------------------------------------------------------------------------------------
+        #command button will option which calculation to make
+        select_button = ttk.Button(filter_frame, text="LC", command=self.topology_select_LC)
+        select_button.pack(side="left")
+        label = ttk.Label(filter_frame, text = "or")
+        select_button = ttk.Button(filter_frame, text="CL", command=self.topology_select_CL)
+        select_button.pack(side="right")
+        #--------------------------------------------------------------------------------------------------------------------------------
 
         select_button = ttk.Button(filter_frame, text="Select CM Choke Data File", command=self.select_file)
         select_button.pack(side="left")
@@ -338,9 +355,14 @@ class NoiseImpedanceWindow(Window):
         if filter_choke is None:
             messagebox.showerror("No File Selected", "Please select a valid data file")
             return
-
-        CM_Zs = emi.Noise_Impedance(CM_base, CM_filtered, Noise_Floor)
-        CM_Zs.CM_calculation(filter_choke, CM_base.freq)
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        if CM_Topo is None:
+            CM_Zs = emi.Noise_Impedance(CM_base, CM_filtered, Noise_Floor)
+            CM_Zs.CM_calculation(filter_choke, CM_base.freq)
+        if CM_Topo is 1:
+            CM_Zs = emi.Noise_Impedance(CM_base, CM_filtered, Noise_Floor)
+            CM_Zs.CM_calculation(filter_choke, CM_base.freq)
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
         DM_Zs = emi.Noise_Impedance(DM_base, DM_filtered, Noise_Floor)
         DM_Zs.DM_calculation(x_cap, DM_base.freq)
@@ -423,6 +445,29 @@ class NoiseImpedanceWindow(Window):
         # load measurements into choke
         filter_choke = choke_model.Choke(file_path)
         filter_choke.piecewise_linear(CM_base.freq)
+
+        #-----------------------------------------------------------------------------------------------------
+    def topology_select_CL(self):
+        global CM_Topo
+        CM_Topo = None
+        return
+
+    def topology_select_LC(self):
+        global CM_Topo
+        CM_Topo = 1
+        return
+    
+    def topology_select_CyLCx(self):
+        global DM_Topo
+        DM_Topo = None
+        return
+
+    def topology_select_CxLCxCy(self):
+        global DM_Topo
+        DM_Topo = 1
+        return
+        #-----------------------------------------------------------------------------------------------------
+
 
 class FilterCM(Window):
     def __init__(self, parent_frame: ttk.Frame) -> None:
