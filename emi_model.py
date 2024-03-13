@@ -249,6 +249,10 @@ class Common_Mode_Estimate(Estimate):
         B = np.abs(self.parallel_eqv(self.R_lisn, self.Z_cap) + Z_noise_source)
 
         return np.abs(A - B)
+    
+    #def find_Z_choke_helper_LC(self, Z_noise_source: np.ndarray) -> np.ndarray:
+
+
 
     # Back-calculate the min choke impedance needed to meet a given limit
     def find_Z_choke(self, baseline: Spectrum_Measurement, limit: np.ndarray):
