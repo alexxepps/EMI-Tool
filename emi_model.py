@@ -187,7 +187,7 @@ class Estimate:
     
     # calculates how estimated attenuation affects baseline noise
     def calculate_noise(self, baseline: Spectrum_Measurement):
-        self.worst_estimate = 20 * np.log10((10 ** (baseline.measurement/20))/self.worst_attenuation)#------------
+        self.worst_estimate = 20 * np.log10((10 ** (baseline.measurement/20))/self.worst_attenuation)#------------where does this formula come from?
         self.mean_estimate = 20 * np.log10((10 ** (baseline.measurement/20))/self.mean_attenuation)
 
 # Models CM EMI performance
@@ -250,7 +250,9 @@ class Common_Mode_Estimate(Estimate):
 
         return np.abs(A - B)
     
+    #-------------------------------------------------------------------------------------------------------------------------------------------------------------
     def find_Z_choke_helper_LC(self, Z_noise_source: np.ndarray) -> np.ndarray:
+        #constants
         C = self.Z_cap * (self.R_lisn)**3
         B = self.Z_cap * (self.R_lisn)**2
         C1 = Z_noise_source * (self.R_lisn)**3
@@ -259,19 +261,50 @@ class Common_Mode_Estimate(Estimate):
         A = self.Z_cap * self.R_lisn
         A1 = Z_noise_source * self.R_lisn 
         B2 = Z_noise_source * self.Z_cap * self.R_lisn
-
+        #constants grouped for numerator
         AA = A + A1
         BB = 2*B + 2*B1 + B2
         CC = C + C1 + C2
-
+        #constants grouped for denominator
         DD = B + B2
         EE = C + C2
 
         X = self.needed_attenuation * EE
+        #more grouping
+        CCC = CC - X
+        BBB = BB  - (self.needed_attenuation * DD)
+        #quadratic solved for two solutions, returns the least impedance needed
+        solutions = self.solve_quadratic(AA, BBB, CCC)
+        return np.minimum(solutions[0], solutions[1])
 
-        # Attenuation * EE = Zchoke**2 (AA) + Zchoke (BB-Attenuation*DD) + CC
+        #overall equation
+        #0 = Zchoke**2 (AA) + Zchoke (BB-Attenuation*DD) + CC - (Attenuation * EE) 
+    #------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-
+    def solve_quadratic(self, a, b, c):
+        """Solves a quadratic equation of the form ax^2 + bx + c = 0 and returns the solutions.
+        Args:
+        a: Coefficient of the x^2 term.
+        b: Coefficient of the x term.
+        c: Constant term.
+            
+        Returns:
+        A tuple containing the two solutions of the equation, or None if there are no real number solutions."""
+        # Calculate the discriminant
+        discriminant = b**2 - 4 * a * c
+        # Check for different real roots
+        if discriminant > 0:
+            root1 = (-b + math.sqrt(discriminant)) / (2 * a)
+            root2 = (-b - math.sqrt(discriminant)) / (2 * a)
+            return root1, root2
+        # Check for equal real roots
+        elif discriminant == 0:
+            root = -b / (2 * a)
+            return root, root
+            # Complex roots
+        else:
+            return
+        #dont like imaginary numbers for this
 
     # Back-calculate the min choke impedance needed to meet a given limit
     def find_Z_choke(self, baseline: Spectrum_Measurement, limit: np.ndarray):
@@ -290,6 +323,7 @@ class Common_Mode_Estimate(Estimate):
     def save_Z_choke(self, file):
         # save worst Z_choke to file
         contents = pd.DataFrame({"Frequency":self.freq, "Impedance":self.needed_worst_Z_choke})
+        contents = pd.DataFrame({"Frequency":self.freq, "Impedance":self.needed_worst_Z_choke_LC})
         # seems to insert blank lines unless lineterminator is specified...
         contents.to_csv(file, index=False, lineterminator='\n')
         return
