@@ -187,7 +187,7 @@ class Estimate:
     
     # calculates how estimated attenuation affects baseline noise
     def calculate_noise(self, baseline: Spectrum_Measurement):
-        self.worst_estimate = 20 * np.log10((10 ** (baseline.measurement/20))/self.worst_attenuation)
+        self.worst_estimate = 20 * np.log10((10 ** (baseline.measurement/20))/self.worst_attenuation)#------------
         self.mean_estimate = 20 * np.log10((10 ** (baseline.measurement/20))/self.mean_attenuation)
 
 # Models CM EMI performance
@@ -250,7 +250,26 @@ class Common_Mode_Estimate(Estimate):
 
         return np.abs(A - B)
     
-    #def find_Z_choke_helper_LC(self, Z_noise_source: np.ndarray) -> np.ndarray:
+    def find_Z_choke_helper_LC(self, Z_noise_source: np.ndarray) -> np.ndarray:
+        C = self.Z_cap * (self.R_lisn)**3
+        B = self.Z_cap * (self.R_lisn)**2
+        C1 = Z_noise_source * (self.R_lisn)**3
+        B1 = Z_noise_source * (self.R_lisn)**2
+        C2 = Z_noise_source * self.Z_cap * (self.R_lisn)**2
+        A = self.Z_cap * self.R_lisn
+        A1 = Z_noise_source * self.R_lisn 
+        B2 = Z_noise_source * self.Z_cap * self.R_lisn
+
+        AA = A + A1
+        BB = 2*B + 2*B1 + B2
+        CC = C + C1 + C2
+
+        DD = B + B2
+        EE = C + C2
+
+        X = self.needed_attenuation * EE
+
+        # Attenuation * EE = Zchoke**2 (AA) + Zchoke (BB-Attenuation*DD) + CC
 
 
 
@@ -264,6 +283,8 @@ class Common_Mode_Estimate(Estimate):
 
         # find Z_choke with worst case (min/max) noise
         self.needed_worst_Z_choke = np.maximum(self.find_Z_choke_helper(self.min_noise),self.find_Z_choke_helper(self.max_noise))
+
+        self.needed_worst_Z_choke_LC = np.maximum(self.find_Z_choke_helper_LC(self.min_noise),self.find_Z_choke_helper_LC(self.max_noise))
         return
     
     def save_Z_choke(self, file):
