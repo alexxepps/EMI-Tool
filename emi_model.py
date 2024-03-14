@@ -187,7 +187,7 @@ class Estimate:
     
     # calculates how estimated attenuation affects baseline noise
     def calculate_noise(self, baseline: Spectrum_Measurement):
-        self.worst_estimate = 20 * np.log10((10 ** (baseline.measurement/20))/self.worst_attenuation)#------------where does this formula come from?
+        self.worst_estimate = 20 * np.log10((10 ** (baseline.measurement/20))/self.worst_attenuation)#------------where does this formula come fro
         self.mean_estimate = 20 * np.log10((10 ** (baseline.measurement/20))/self.mean_attenuation)
 
 # Models CM EMI performance
@@ -388,12 +388,13 @@ class Differential_Mode_Estimate(Estimate):
      # Helps calculate the attenuation when two x caps are used ----------------------------------------------------------------------
     def CLC_topology_helper(self, Z_noise_source:np.ndarray):
         no_filter = self.R_lisn / (self.R_lisn + Z_noise_source)
-        R_Z_x = self.parallel_eqv(self.R_lisn, self.Z_x_1_cap)
-        Zxy = self.parallel_eqv(self.Z_y_cap, self.Z_x_2_cap)
+        R_Z_x = self.parallel_eqv(self.R_lisn, self.Z_x_cap)
+        Zxy = self.parallel_eqv(self.Z_y_cap, self.Z_x_cap) #really self._x_2_cap
         Z_l_x_leak = R_Z_x + self.Z_leakage 
         Z_l_x_leak_y_x = self.parallel_eqv(Z_l_x_leak, Zxy)
         filter = (Z_l_x_leak_y_x / (Z_l_x_leak_y_x + Z_noise_source))*(R_Z_x / (R_Z_x + self.Z_leakage))
         A = no_filter / filter
+        
         return np.abs(A)
     
     # handles calculations for a PI DM EMI circuit, using y caps and leakage inductance
@@ -413,7 +414,23 @@ class Differential_Mode_Estimate(Estimate):
         return
     #----------------------------------------------------------------------------------------------------------------------------------------------
 
-    
+    def evaluate_equation(self, Z_x_cap, Z_noise_source:np.ndarray):
+        no_filter = self.R_lisn / (self.R_lisn + Z_noise_source)
+        R_Z_x = self.parallel_eqv(self.R_lisn, Z_x_cap)
+        Zxy = self.parallel_eqv(self.Z_y_cap, Z_x_cap) #really self._x_2_cap
+        Z_l_x_leak = R_Z_x + self.Z_leakage 
+        Z_l_x_leak_y_x = self.parallel_eqv(Z_l_x_leak, Zxy)
+        filter = (Z_l_x_leak_y_x / (Z_l_x_leak_y_x + Z_noise_source))*(R_Z_x / (R_Z_x + self.Z_leakage))
+        equation = no_filter / (filter * self.worst_attenuation)
+        return equation
+        
+    def find_Z_x_helper_PI2(self, Z_noise_source:np.ndarray):
+        for Z_x_cap_test in range(1, 1000):
+            result = self.evaluate_equation(Z_x_cap_test, Z_noise_source)
+            if result < 0.1 and result > 0:
+                return np.abs(Z_x_cap_test)
+
+        
     # Helps calculate the X cap impedance for a specific noise source impedance.
     def find_Z_x_helper(self, Z_noise_source:np.ndarray):
         # Assuming PI topology...
@@ -433,6 +450,8 @@ class Differential_Mode_Estimate(Estimate):
 
         # find Z_x with worst case (min/max) noise
         self.needed_Z_x = np.minimum(self.find_Z_x_helper(self.min_noise),self.find_Z_x_helper(self.max_noise))
+
+        self.needed_Z_x_PI2 = np.minimum(self.find_Z_x_helper_PI2(self.min_noise), self.find_Z_x_helper_PI2(self.max_noise))
         return
 
 # Holds the noise limits in a form appropriate for calculations and display.
