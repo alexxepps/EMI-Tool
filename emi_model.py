@@ -219,7 +219,6 @@ class Common_Mode_Estimate(Estimate):
         self.worst_attenuation = np.minimum(np.abs(attenuation_w_min_noise),np.abs(attenuation_w_max_noise))
         return
     
-    #------------------------------------------------------------------------------------------------------------------------------------------------
     def LC_topology_helper(self, Z_noise_source: np.ndarray) -> np.ndarray:
         no_filter = self.R_lisn / (self.R_lisn + Z_noise_source)
         Z_lisn_choke = self.R_lisn + self.Z_choke
@@ -242,7 +241,6 @@ class Common_Mode_Estimate(Estimate):
         attenuation_w_max_noise = self.LC_topology_helper(self.max_noise)
         self.worst_attenuation = np.minimum(np.abs(attenuation_w_min_noise),np.abs(attenuation_w_max_noise))
         return
-    #---------------------------------------------------------------------------------------------------------------------------------------------------------
 
     # Helps calculate the necessary choke impedance for a specific noise source impedance.
     def find_Z_choke_helper(self, Z_noise_source: np.ndarray) -> np.ndarray:
@@ -251,138 +249,46 @@ class Common_Mode_Estimate(Estimate):
 
         return np.abs(A - B)
     
-    #-------------------------------------------------------------------------------------------------------------------------------------------------------------
     def find_Z_choke_helper_LC(self, Z_noise_source: np.ndarray) -> np.ndarray:
-        
-        root_list = []
-        #print("Z_noise_source")
-        #print (Z_noise_source)
-        #print("needed attenuation")
-        #print(self.needed_attenuation)
-        #print("Z cap")
+        z_root_list = []
+
         print(self.Z_cap)
         for noise_pt, attenuation_pt, z_cap_pt in zip(Z_noise_source, self.needed_attenuation, self.Z_cap):
+            #variables for quadratic
             C = z_cap_pt * (self.R_lisn)**3
             B = z_cap_pt * (self.R_lisn)**2
             A = z_cap_pt * self.R_lisn
-            #print('Noise pt')
-            #print(noise_pt)
-            #print('attenuation_pt')
-            #print(attenuation_pt)
             CC = C + noise_pt * (self.R_lisn)**3 + noise_pt * z_cap_pt * (self.R_lisn)**2
             BB = 2 * B + 2 * (noise_pt * (self.R_lisn)**2) + noise_pt * z_cap_pt * self.R_lisn
             AA = abs(A + noise_pt * self.R_lisn)
             DD = B + noise_pt * z_cap_pt * self.R_lisn
             EE = C + noise_pt * z_cap_pt * (self.R_lisn)**2
-
             X = attenuation_pt * EE
             CCC = abs(CC - X)
             BBB = abs(BB  - (attenuation_pt * DD))
-        
             discriminant = BBB**2 - 4 * AA * CCC
-            #print('BBB')
-            #print(BBB)
-            #print('AA')
-            #print(AA)
-            #print('CCC')
-            #print(CCC)
-            print('Check me!!!!!')
             print(discriminant)
 
+            #does quadratic math
             if discriminant > 0:
                 root1 = abs(-BBB + math.sqrt(discriminant)) / (2 * AA)
                 root2 = abs(-BBB - math.sqrt(discriminant)) / (2 * AA)
-                root_list.append(max(root1, root2))
+                z_root_list.append(max(root1, root2))
                 
             elif discriminant == 0:
                 root = abs(-BBB / (2 * AA))
-                root_list.append(root)
+                z_root_list.append(root)
                 
             else:
                 real_part = -BBB / (2*AA)
                 imaginary_part = math.sqrt(-discriminant) / (2*AA)
                 root1 = abs(complex(real_part, imaginary_part))
                 root2 = abs(complex(real_part, -imaginary_part))
-                root_list.append(max(root1, root2))
+                z_root_list.append(max(root1, root2))
+        return z_root_list
                 
-        print("root list is")
-        print(root_list)
-        return root_list
-    
-        
-    
-
-    #C1 = noise_pt * (self.R_lisn)**3
-            #B1 = noise_pt * (self.R_lisn)**2
-            #C2 = noise_pt * self.Z_cap * (self.R_lisn)**2
-            #A1 = noise_pt * self.R_lisn 
-            #B2 = noise_pt * self.Z_cap * self.R_lisn
-        #constants grouped for numerator
-            #AA = A + A1
-            #BB = 2*B + 2*B1 + B2
-            #CC = C + C1 + C2
-        #constants grouped for denominator
-            #DD = B + B2
-            #EE = C + C2
-            
-
-        #discriminants = BBB**2 - 4 * AA * CCC
-
-        #length_of_noise_1 = discriminants.size()
-
-        #filtered_discriminants = discriminants.copy()
-        #filtered_greater_than_zero = filtered_discriminants[filtered_discriminants > 0]
-        #filtered_less_than_zero = filtered_discriminants[filtered_discriminants < 0]
-        
-        #zero_checks = np.zeros(598)
-        """root_list = []
-        for discriminant in discriminants:
-            if discriminant > 0:
-                root1 = (-BBB + math.sqrt(discriminant)) / (2 * AA)
-                root2 = (-BBB - math.sqrt(discriminant)) / (2 * AA)
-                root_list.append(abs(min(root1, root2)))
-                return
-            elif discriminant == 0:
-                root = -BBB / (2 * AA)
-                root_list.append(root)
-                return 
-            else:
-                real_part = -BBB / (2*AA)
-                imaginary_part = math.sqrt(-discriminant) / (2*AA)
-                root1 = complex(real_part, imaginary_part)
-                root2 = complex(real_part, -imaginary_part)
-                root_list.append(abs(min(root1, root2)))
-                return
-        return root_list"""
-        
-        
-    """ root_list = []
-
-
-        if discriminants.any() > 0:
-            root1 = (-BBB + math.sqrt(filtered_greater_than_zero)) / (2 * AA)
-            root2 = (-BBB - math.sqrt(filtered_greater_than_zero)) / (2 * AA)
-            root_list.append(np.abs(np.minimum(root1, root2)))
-            return
-        # Check for equal real roots
-        if discriminants.any() == 0:
-            root = -BBB / (2 * AA)
-            root_list.append(np.abs(root))
-            return
-        if discriminants.any() < 0:
-            real_part = -BBB / (2*AA)
-            imaginary_part = math.sqrt(-filtered_less_than_zero) / (2*AA)
-            root1 = complex(real_part, imaginary_part)
-            root2 = complex(real_part, -imaginary_part)
-            root_list.append(np.abs(np.minimum(root1, root2)))
-            return
-        
-        return root_list
-            """
-
         #overall equation
         #0 = Zchoke**2 (AA) + Zchoke (BB-Attenuation*DD) + CC - (Attenuation * EE) 
-    #------------------------------------------------------------------------------------------------------------------------------------------------------------
 
     # Back-calculate the min choke impedance needed to meet a given limit
     def find_Z_choke(self, baseline: Spectrum_Measurement, limit: np.ndarray):
@@ -398,13 +304,14 @@ class Common_Mode_Estimate(Estimate):
         return
     
     def find_Z_choke_LC(self, baseline: Spectrum_Measurement, limit: np.ndarray):
+        # Calculate necessary attenuation to meet limit
         self.needed_attenuation = 10 ** (baseline.measurement/20) / 10 ** (limit/20)
+
+        # find Z_choke with mean noise
         self.needed_mean_Z_choke = self.find_Z_choke_helper_LC(self.mean_noise)
 
+        # find Z_choke with worst case (min/max) noise
         self.needed_worst_Z_choke_LC = np.maximum(self.find_Z_choke_helper_LC(self.min_noise), self.find_Z_choke_helper_LC(self.max_noise))
-        #print ('max_noise_z_choke')
-        #print (max_noise_z_choke)
-        #self.needed_worst_Z_choke_LC = max_noise_z_choke
         return
 
     
@@ -501,23 +408,22 @@ class Differential_Mode_Estimate(Estimate):
         self.worst_attenuation = np.minimum(np.abs(A_min_noise),np.abs(A_max_noise))
         return
     #----------------------------------------------------------------------------------------------------------------------------------------------
-
-    def evaluate_equation(self, Z_x_cap, Z_noise_source:np.ndarray):
-        no_filter = self.R_lisn / (self.R_lisn + Z_noise_source)
-        R_Z_x = self.parallel_eqv(self.R_lisn, Z_x_cap)
-        Zxy = self.parallel_eqv(self.Z_y_cap, Z_x_cap) #really self._x_2_cap
-        Z_l_x_leak = R_Z_x + self.Z_leakage 
-        Z_l_x_leak_y_x = self.parallel_eqv(Z_l_x_leak, Zxy)
-        filter = (Z_l_x_leak_y_x / (Z_l_x_leak_y_x + Z_noise_source))*(R_Z_x / (R_Z_x + self.Z_leakage))
-        equation = no_filter / (filter * self.worst_attenuation)
-        return equation
-        
+    #for noise_pt, attenuation_pt, z_cap_pt in zip(Z_noise_source, self.needed_attenuation, self.Z_cap):
     def find_Z_x_helper_PI2(self, Z_noise_source:np.ndarray):
-        for Z_x_cap_test in range(1, 1000):
-            result = self.evaluate_equation(Z_x_cap_test, Z_noise_source)
-            if result < 0.1 and result > 0:
-                return np.abs(Z_x_cap_test)
-
+        z_x_result_array = []
+        for noise_pt, attenuation_pt, z_cap_y_pt, z_leak in zip(Z_noise_source, self.needed_attenuation, self.Z_y_cap, self.Z_leakage):
+            for Z_x_cap_random in range(1, 1000):
+                no_filter = self.R_lisn / (self.R_lisn + noise_pt)
+                r_z_x = self.parallel_eqv(self.R_lisn, Z_x_cap_random)
+                zxy = self.parallel_eqv(z_cap_y_pt, Z_x_cap_random) #really self._x_2_cap
+                z_l_x_leak = r_z_x + z_leak
+                z_l_x_leak_y_x = self.parallel_eqv(z_l_x_leak, zxy)
+                filter = (z_l_x_leak_y_x / (z_l_x_leak_y_x + noise_pt))*(r_z_x / (r_z_x + z_leak))
+                result_math = abs(no_filter / (filter * attenuation_pt))
+                if result_math < 1.5 and result_math >= 0:
+                    z_x_result_array.append(result_math)
+                    print('yay')
+        return z_x_result_array
         
     # Helps calculate the X cap impedance for a specific noise source impedance.
     def find_Z_x_helper(self, Z_noise_source:np.ndarray):

@@ -676,9 +676,9 @@ class FilterDM(Window):
         label = ttk.Label(options_frame, text="Push the button to select the topology used")
         label.pack()
 
-        button(options_frame, "Xcaps Choke (Ycap Xcap)", self.topology_select_CyLCx)
+        button(options_frame, "Ycap Choke Xcap", self.topology_select_CyLCx)
         select_button.pack(side="left")
-        button(options_frame, "Ycap Choke Xcap", self.topology_select_CxLCxCy)
+        button(options_frame, "Xcap Choke Ycap Xcap", self.topology_select_CxLCyCx)
         select_button.pack(side="left")
         
         button(options_frame, "Calculate Max Impedance Curve", self.show_suggested_impedance)
@@ -787,7 +787,7 @@ class FilterDM(Window):
         DM_Topo = None
        
 
-    def topology_select_CxLCxCy(self):
+    def topology_select_CxLCyCx(self):
         global DM_Topo
         DM_Topo = 1
         
