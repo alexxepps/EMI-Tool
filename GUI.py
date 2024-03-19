@@ -219,6 +219,8 @@ class FileSelectWindow(Window):
         label.pack(side="top", anchor='center')
         label = ttk.Label(self.root, text = "There should be a data measurement of each kind for each frequency.")
         label.pack(side="top", anchor='center')
+        label = ttk.Label(self.root, text = "Alex Rev")
+        label.pack(side="top", anchor='center')
 
     # allows user to select a measurement file to load
     def select_file(self):
@@ -427,10 +429,6 @@ class NoiseImpedanceWindow(Window):
         filter_choke = choke_model.Choke(file_path)
         filter_choke.piecewise_linear(CM_base.freq)
 
-       
-        
-    
-
 
 class FilterCM(Window):
     def __init__(self, parent_frame: ttk.Frame) -> None:
@@ -476,11 +474,10 @@ class FilterCM(Window):
 
         #buttons that choose CM LC or CL filter------------------------------------------------------------------------------------------
         #command button will option which calculation to make
-        select_button = ttk.Button(filter_frame, text="LC", command=self.topology_select_LC)
-        select_button.pack(side="left")
-        label = ttk.Label(filter_frame, text = "or")
-        select_button = ttk.Button(filter_frame, text="CL", command=self.topology_select_CL)
-        select_button.pack(side="right")
+        button(options_frame, "LC", self.topology_select_LC)
+        label = ttk.Label(options_frame, text = "or")
+        button(options_frame, "CL", self.topology_select_CL)
+        
         #--------------------------------------------------------------------------------------------------------------------------------
 
         button(options_frame, "Calculate Min Impedance Curve", self.show_suggested_impedance)
@@ -617,11 +614,13 @@ class FilterCM(Window):
     def topology_select_CL(self):
         global CM_Topo
         CM_Topo = None
+        messagebox.showerror("CL topology selected")
         
 
     def topology_select_LC(self):
         global CM_Topo
         CM_Topo = 1
+        messagebox.showerror("LC topology selected")
 
 class FilterDM(Window):
     def __init__(self, parent_frame: ttk.Frame) -> None:
@@ -674,7 +673,7 @@ class FilterDM(Window):
 
         label = ttk.Label(options_frame, text="Were two Xcaps used in addition to Ycaps for the PI filter?")
         label.pack()
-        label = ttk.label(options_frame, text="Push the button to select the topology used")
+        label = ttk.Label(options_frame, text="Push the button to select the topology used")
         label.pack()
 
         button(options_frame, "Xcaps Choke (Ycap Xcap)", self.topology_select_CyLCx)
