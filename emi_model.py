@@ -267,7 +267,7 @@ class Common_Mode_Estimate(Estimate):
             CCC = abs(CC - X)
             BBB = abs(BB  - (attenuation_pt * DD))
             discriminant = BBB**2 - 4 * AA * CCC
-            print(discriminant)
+            #print(discriminant)
 
             #does quadratic math
             if discriminant > 0:
@@ -411,8 +411,9 @@ class Differential_Mode_Estimate(Estimate):
     #for noise_pt, attenuation_pt, z_cap_pt in zip(Z_noise_source, self.needed_attenuation, self.Z_cap):
     def find_Z_x_helper_PI2(self, Z_noise_source:np.ndarray):
         z_x_result_array = []
+        check = None
         for noise_pt, attenuation_pt, z_cap_y_pt, z_leak in zip(Z_noise_source, self.needed_attenuation, self.Z_y_cap, self.Z_leakage):
-            for Z_x_cap_random in range(1, 1000):
+            for Z_x_cap_random in range(0, 10000, 1):
                 no_filter = self.R_lisn / (self.R_lisn + noise_pt)
                 r_z_x = self.parallel_eqv(self.R_lisn, Z_x_cap_random)
                 zxy = self.parallel_eqv(z_cap_y_pt, Z_x_cap_random) #really self._x_2_cap
@@ -420,10 +421,22 @@ class Differential_Mode_Estimate(Estimate):
                 z_l_x_leak_y_x = self.parallel_eqv(z_l_x_leak, zxy)
                 filter = (z_l_x_leak_y_x / (z_l_x_leak_y_x + noise_pt))*(r_z_x / (r_z_x + z_leak))
                 result_math = abs(no_filter / (filter * attenuation_pt))
-                if result_math < 1.5 and result_math >= 0:
+            
+                if result_math < 5:
                     z_x_result_array.append(result_math)
-                    print('yay')
+                    check = 1
+                    temp = result_math
+                    break
+                else:
+                    check = 0
+                if Z_x_cap_random == 1000 and check == 0:
+                    z_x_result_array.append(temp)
+                    break
+        print ('z_x_result_array')
+        print (z_x_result_array)
         return z_x_result_array
+    
+    
         
     # Helps calculate the X cap impedance for a specific noise source impedance.
     def find_Z_x_helper(self, Z_noise_source:np.ndarray):
@@ -449,7 +462,7 @@ class Differential_Mode_Estimate(Estimate):
     def find_Zx_PI2(self, base: Spectrum_Measurement, limit: np.ndarray):
         self.needed_attenuation = 10 ** (base.measurement/20) / 10 ** (limit/20)
 
-        self.needed_Z_x_PI2 = np.minimum(self.find_Z_x_helper_PI2(self.min_noise), self.find_Z_x_helper_PI2(self.max_noise))
+        self.needed_Z_x_PI2 = np.maximum(self.find_Z_x_helper_PI2(self.min_noise), self.find_Z_x_helper_PI2(self.max_noise))
         return
 
 # Holds the noise limits in a form appropriate for calculations and display.
