@@ -252,7 +252,38 @@ class Common_Mode_Estimate(Estimate):
         attenuation_w_max_noise = self.LC_topology_helper(self.max_noise)
         self.worst_attenuation = np.minimum(np.abs(attenuation_w_min_noise),np.abs(attenuation_w_max_noise))
         return
+    
+    def CLC_topology_helper(self, Z_noise_source: np.ndarray) -> np.ndarray:
+        no_filter = self.R_lisn / (self.R_lisn + Z_noise_source)
+        Z1 = self.parallel_eqv(self.R_lisn, self.Z_cap)
+        Z2 = Z1 + self.Z_choke
+        Z3 = self.parallel_eqv(Z2, self.Z_cap_1)
+        filter = (Z3 * Z1) / ((Z3+Z_noise_source)*(Z1+self.Z_choke))
+        A = no_filter / filter
+        return np.abs(A)
+    
+    def CLC_topology_math(self, y_cap: float, y_cap_1: float, cm_choke: Choke):
+        # Recall that in the CM equivalent circuit, both y caps are in parallel...
+        self.Z_cap = -1j / (2*math.pi*self.freq*y_cap*2)
+        self.Z_cap_1 = -1j / (2*math.pi*self.freq*y_cap_1*2)
+        self.Z_choke = cm_choke.impedance
+        return
+    
+    def CLC_topology(self, y_cap: float, y_cap_1: float, cm_choke: Choke):
+        # Recall that in the CM equivalent circuit, both y caps are in parallel...
+        self.Z_cap = -1j / (2*math.pi*self.freq*y_cap*2)
+        self.Z_cap_1 = -1j / (2*math.pi*self.freq*y_cap_1*2)
+        self.Z_choke = cm_choke.impedance
 
+        # Calculate attenuation for CL topology using mean noise
+        self.mean_attenuation = self.CLC_topology_helper(self.mean_noise)
+
+        # Calculate attenuation for CL topology, using max/min noise and choosing the worst case result
+        attenuation_w_min_noise = self.CLC_topology_helper(self.min_noise)
+        attenuation_w_max_noise = self.CLC_topology_helper(self.max_noise)
+        self.worst_attenuation = np.minimum(np.abs(attenuation_w_min_noise),np.abs(attenuation_w_max_noise))
+        return
+        
     # Helps calculate the necessary choke impedance for a specific noise source impedance.
     def find_Z_choke_helper(self, Z_noise_source: np.ndarray) -> np.ndarray:
         A = np.abs((self.needed_attenuation * (self.R_lisn + Z_noise_source) * self.parallel_eqv(self.R_lisn, self.Z_cap)) / self.R_lisn)
@@ -263,7 +294,6 @@ class Common_Mode_Estimate(Estimate):
     def find_Z_choke_helper_LC(self, Z_noise_source: np.ndarray) -> np.ndarray:
         z_root_list = []
 
-        print(self.Z_cap)
         for noise_pt, attenuation_pt, z_cap_pt in zip(Z_noise_source, self.needed_attenuation, self.Z_cap):
             #variables for quadratic
             C = z_cap_pt * (self.R_lisn)**3
@@ -300,7 +330,38 @@ class Common_Mode_Estimate(Estimate):
                 
         #overall equation
         #0 = Zchoke**2 (AA) + Zchoke (BB-Attenuation*DD) + CC - (Attenuation * EE) 
-
+    
+    def find_Z_choke_helper_CLC(self, Z_noise_source: np.ndarray) -> np.ndarray:
+        z_root_listt = []
+        for noise_pt, attenuation_pt, z_cap_pt, z_cap_pt_1 in zip(Z_noise_source, self.needed_attenuation, self.Z_cap, self.Z_cap_1):
+            A1 = z_cap_pt_1 * self.R_lisn**3 + z_cap_pt * z_cap_pt_1 * self.R_lisn**2 + z_cap_pt * noise_pt * self.R_lisn**2 + z_cap_pt * z_cap_pt_1 * self.R_lisn**2 + z_cap_pt**2 * z_cap_pt_1 + z_cap_pt * self.R_lisn**2 * noise_pt
+            A2 = z_cap_pt**2 * noise_pt + + self.R_lisn**3 * noise_pt
+            A = A1 + A2
+            B1 = z_cap_pt_1 * self.R_lisn**3 * z_cap_pt + z_cap_pt**2 * self.R_lisn**2 * z_cap_pt_1 + z_cap_pt * self.R_lisn**3 * noise_pt + z_cap_pt**2 * noise_pt * self.R_lisn**2 
+            B2 = z_cap_pt_1 * self.R_lisn**3 * z_cap_pt + self.R_lisn**3 * z_cap_pt * noise_pt + self.R_lisn**3 * z_cap_pt_1 * noise_pt 
+            B3 = z_cap_pt_1 * z_cap_pt * noise_pt * self.R_lisn**2 + z_cap_pt**2 * z_cap_pt_1 * self.R_lisn**2 + z_cap_pt**2 * self.R_lisn**2 * noise_pt + z_cap_pt * z_cap_pt_1 * self.R_lisn**2 * noise_pt
+            B4 = z_cap_pt**2 * z_cap_pt_1 * noise_pt - attenuation_pt*(z_cap_pt_1 * self.R_lisn**3 * z_cap_pt + z_cap_pt **2 * z_cap_pt_1 * self.R_lisn**2 + noise_pt * z_cap_pt_1 * self.R_lisn**2 * z_cap_pt + noise_pt * z_cap_pt**2 * z_cap_pt_1 * self.R_lisn)
+            B = B1 + B2 + B3 + B4
+            C = z_cap_pt_1 * self.R_lisn**3 * z_cap_pt**2 + self.R_lisn**3 * z_cap_pt**2 * noise_pt + z_cap_pt_1 * self.R_lisn**3 * z_cap_pt * noise_pt + self.R_lisn**2 * z_cap_pt**2 * z_cap_pt_1 * noise_pt - attenuation_pt* (z_cap_pt_1*self.R_lisn**3 * z_cap_pt**2 + noise_pt * z_cap_pt_1 * self.R_lisn**2 * z_cap_pt**2)
+            discriminant = B**2 - 4*A * C
+            if discriminant > 0:
+                root1 = abs(-B + math.sqrt(discriminant)) / (2 * A)
+                root2 = abs(-B - math.sqrt(discriminant)) / (2 * A)
+                z_root_listt.append(max(root1, root2))
+                
+            elif discriminant == 0:
+                root = abs(-B / (2 * A))
+                z_root_listt.append(root)
+                
+            else:
+                real_part = -B / (2*A)
+                imaginary_part = math.sqrt(-discriminant) / (2*A)
+                root1 = abs(complex(real_part, imaginary_part))
+                root2 = abs(complex(real_part, -imaginary_part))
+                z_root_listt.append(max(root1, root2))
+        return z_root_listt
+            
+    
     # Back-calculate the min choke impedance needed to meet a given limit
     def find_Z_choke(self, baseline: Spectrum_Measurement, limit: np.ndarray):
         # Calculate necessary attenuation to meet limit
@@ -324,6 +385,17 @@ class Common_Mode_Estimate(Estimate):
         # find Z_choke with worst case (min/max) noise
         self.needed_worst_Z_choke_LC = np.maximum(self.find_Z_choke_helper_LC(self.min_noise), self.find_Z_choke_helper_LC(self.max_noise))
         return
+    
+    def find_Z_choke_CLC(self, baseline: Spectrum_Measurement, limit: np.ndarray):
+        # Calculate necessary attenuation to meet limit
+        self.needed_attenuation = 10 ** (baseline.measurement/20) / 10 ** (limit/20)
+
+        # find Z_choke with mean noise
+        self.needed_mean_Z_choke = self.find_Z_choke_helper_CLC(self.mean_noise)
+
+        # find Z_choke with worst case (min/max) noise
+        self.needed_worst_Z_choke_CLC = np.maximum(self.find_Z_choke_helper_CLC(self.min_noise), self.find_Z_choke_helper_CLC(self.max_noise))
+        return
 
     
     def save_Z_choke(self, file):
@@ -337,6 +409,14 @@ class Common_Mode_Estimate(Estimate):
         # save worst Z_choke to file
         
         contents = pd.DataFrame({"Frequency":self.freq, "Impedance":self.needed_worst_Z_choke_LC})
+        # seems to insert blank lines unless lineterminator is specified...
+        contents.to_csv(file, index=False, lineterminator='\n')
+        return
+    
+    def save_Z_choke_CLC(self, file):
+        # save worst Z_choke to file
+        
+        contents = pd.DataFrame({"Frequency":self.freq, "Impedance":self.needed_worst_Z_choke_CLC})
         # seems to insert blank lines unless lineterminator is specified...
         contents.to_csv(file, index=False, lineterminator='\n')
         return
@@ -356,6 +436,10 @@ class Differential_Mode_Estimate(Estimate):
         filter = R_Z_x / (R_Z_x + Z_noise_source)
         Attenuation = no_filter/filter
         return np.abs(Attenuation)
+    #-------------------------------------------------------------------------------------------------------------------------------------
+    #def Add_addtional_Zx(self, x_cap_1: float):
+        #self.Z_x_cap_2 = -1j / (2*math.pi*self.freq*x_cap_1)
+        #return
     
     # handles calculations for a C DM EMI circuit
     def C_topology(self, x_cap: float):
@@ -405,12 +489,24 @@ class Differential_Mode_Estimate(Estimate):
         # y caps will be in series for the DM equiv circuit...
         self.Z_y_cap = -1j / (2*math.pi*self.freq*y_cap/2)
         self.Z_leakage = choke_leakage.impedance
+        return
 
      # Helps calculate the attenuation when two x caps are used ----------------------------------------------------------------------
     def PI2_topology_helper(self, Z_noise_source:np.ndarray):
         no_filter = self.R_lisn / (self.R_lisn + Z_noise_source)
+        R_Z_x = self.parallel_eqv(self.R_lisn, self.Z_x_cap_1)
+        Zxy = self.parallel_eqv(self.Z_y_cap, self.Z_x_cap_2) #really self._x_2_cap - done
+        Z_l_x_leak = R_Z_x + self.Z_leakage 
+        Z_l_x_leak_y_x = self.parallel_eqv(Z_l_x_leak, Zxy)
+        filter = (Z_l_x_leak_y_x / (Z_l_x_leak_y_x + Z_noise_source))*(R_Z_x / (R_Z_x + self.Z_leakage))
+        A = no_filter / filter
+        
+        return np.abs(A)
+    
+    def PI2_topology_helper_one_x(self, Z_noise_source:np.ndarray):
+        no_filter = self.R_lisn / (self.R_lisn + Z_noise_source)
         R_Z_x = self.parallel_eqv(self.R_lisn, self.Z_x_cap)
-        Zxy = self.parallel_eqv(self.Z_y_cap, self.Z_x_cap) #really self._x_2_cap
+        Zxy = self.parallel_eqv(self.Z_y_cap, self.Z_x_cap) #really self._x_2_cap - done
         Z_l_x_leak = R_Z_x + self.Z_leakage 
         Z_l_x_leak_y_x = self.parallel_eqv(Z_l_x_leak, Zxy)
         filter = (Z_l_x_leak_y_x / (Z_l_x_leak_y_x + Z_noise_source))*(R_Z_x / (R_Z_x + self.Z_leakage))
@@ -419,8 +515,10 @@ class Differential_Mode_Estimate(Estimate):
         return np.abs(A)
     
     # handles calculations for a PI DM EMI circuit, using y caps and leakage inductance
-    def PI2_topology(self, x_cap: float, y_cap:float, choke_leakage:Choke):
-        self.Z_x_cap = -1j / (2*math.pi*self.freq*x_cap)
+    def PI2_topology(self, x_cap_1: float, x_cap_2: float, y_cap:float, choke_leakage:Choke):
+        
+        self.Z_x_cap_1 = -1j / (2*math.pi*self.freq*x_cap_1)
+        self.Z_x_cap_2 = -1j / (2*math.pi*self.freq*x_cap_2)
         # y caps will be in series for the DM equiv circuit...
         self.Z_y_cap = -1j / (2*math.pi*self.freq*y_cap/2)
         self.Z_leakage = choke_leakage.impedance
@@ -434,11 +532,29 @@ class Differential_Mode_Estimate(Estimate):
         self.worst_attenuation = np.minimum(np.abs(A_min_noise),np.abs(A_max_noise))
         return
     
+    def PI2_topology_one_x(self, x_cap: float, y_cap:float, choke_leakage:Choke):
+        
+        self.Z_x_cap = -1j / (2*math.pi*self.freq*x_cap)
+       
+        # y caps will be in series for the DM equiv circuit...
+        self.Z_y_cap = -1j / (2*math.pi*self.freq*y_cap/2)
+        self.Z_leakage = choke_leakage.impedance
+
+        # Calculate attenuation for PI topology using mean noise
+        self.mean_attenuation = self.PI2_topology_helper_one_x(self.mean_noise)
+
+        # Calculate attenuation for PI topology, using max/min noise and choosing the worst case result
+        A_min_noise = self.PI2_topology_helper_one_x(self.min_noise)
+        A_max_noise = self.PI2_topology_helper_one_x(self.max_noise)
+        self.worst_attenuation = np.minimum(np.abs(A_min_noise),np.abs(A_max_noise))
+        return
+    
     def PI2_topology_math(self, x_cap: float, y_cap:float, choke_leakage:Choke):
         self.Z_x_cap = -1j / (2*math.pi*self.freq*x_cap)
         # y caps will be in series for the DM equiv circuit...
         self.Z_y_cap = -1j / (2*math.pi*self.freq*y_cap/2)
         self.Z_leakage = choke_leakage.impedance
+        return
     
     def CCL_topology_helper(self, Z_noise_source:np.ndarray):
         no_filter = self.R_lisn / (self.R_lisn + Z_noise_source)
@@ -501,6 +617,85 @@ class Differential_Mode_Estimate(Estimate):
         self.Z_y_cap = -1j / (2*math.pi*self.freq*y_cap/2)
         self.Z_leakage = choke_leakage.impedance
         return
+    
+    def CxLCy_topology_helper(self, Z_noise_source:np.ndarray):
+        no_filter = self.R_lisn / (self.R_lisn + Z_noise_source)
+        Z1 = self.parallel_eqv(self.R_lisn, self.Z_x_cap)
+        Z2 = Z1 + self.Z_leakage
+        Z3 = self.parallel_eqv(Z2, self.Z_y_cap)
+        filter = (Z3 / (Z3 + Z_noise_source)) * (self.parallel_eqv(self.R_lisn, self.Z_x_cap) / (self.parallel_eqv(self.R_lisn, self.Z_x_cap) + self.Z_leakage))
+        A = no_filter / filter
+        return np.abs(A)
+    
+    def CxLCy_topology(self, x_cap: float, y_cap:float, choke_leakage:Choke):
+        self.Z_x_cap = -1j / (2*math.pi*self.freq*x_cap)
+        # y caps will be in series for the DM equiv circuit...
+        self.Z_y_cap = -1j / (2*math.pi*self.freq*y_cap/2)
+        self.Z_leakage = choke_leakage.impedance
+
+        # Calculate attenuation for PI topology using mean noise
+        self.mean_attenuation = self.CxLCy_topology_helper(self.mean_noise)
+
+        # Calculate attenuation for PI topology, using max/min noise and choosing the worst case result
+        A_min_noise = self.CxLCy_topology_helper(self.min_noise)
+        A_max_noise = self.CxLCy_topology_helper(self.max_noise)
+        
+        self.worst_attenuation = np.minimum(np.abs(A_min_noise),np.abs(A_max_noise))
+        return
+    
+    def CxLCy_topology_math(self, x_cap: float, y_cap:float, choke_leakage:Choke):
+        self.Z_x_cap = -1j / (2*math.pi*self.freq*x_cap)
+        # y caps will be in series for the DM equiv circuit...
+        self.Z_y_cap = -1j / (2*math.pi*self.freq*y_cap/2)
+        self.Z_leakage = choke_leakage.impedance
+        return
+    
+    def find_Zx_CxLCy(self, base: Spectrum_Measurement, limit: np.ndarray):
+        # Calculate necessary attenuation to meet limit
+        self.needed_attenuation = 10 ** (base.measurement/20) / 10 ** (limit/20)
+
+        # find Z_x with worst case (min/max) noise
+        self.needed_Z_x_CxLCy = np.minimum(self.find_Z_x_helper_CxLCy(self.min_noise),self.find_Z_x_helper_CxLCy(self.max_noise))
+        return
+    
+    def find_Z_x_helper_CxLCy(self, Z_noise_source:np.ndarray):
+        z_root_list_1 = []
+
+        for noise_pt, attenuation_pt, z_cap_y_pt, z_leak_pt in zip(Z_noise_source, self.needed_attenuation, self.Z_y_cap, self.Z_leakage):
+            A1 = self.R_lisn**2 + z_leak_pt * self.R_lisn + z_cap_y_pt * self.R_lisn**3 + z_cap_y_pt * z_leak_pt * self.R_lisn**2 + z_cap_y_pt * z_leak_pt * self.R_lisn**2
+            A2 = z_cap_y_pt * z_leak_pt**2 * self.R_lisn + noise_pt * self.R_lisn**3 + noise_pt * self.R_lisn**2 * z_leak_pt + noise_pt * z_leak_pt * self.R_lisn**2
+            A3 = - attenuation_pt * self.R_lisn**2 - attenuation_pt * self.R_lisn**3 * z_cap_y_pt - attenuation_pt * z_cap_y_pt * z_leak_pt * self.R_lisn**2
+            A4 = - attenuation_pt * self.R_lisn * noise_pt - attenuation_pt * noise_pt * self.R_lisn**2 * z_cap_y_pt - attenuation_pt * noise_pt * z_cap_y_pt * z_leak_pt * self.R_lisn
+            A = A1 + A2 + A3 + A4
+
+            B1 = self.R_lisn**3 + self.R_lisn**2 * z_leak_pt + z_leak_pt * self.R_lisn**2 + z_cap_y_pt * self.R_lisn**3 * z_leak_pt + z_cap_y_pt * z_leak_pt**2 * self.R_lisn**2
+            B2 = z_cap_y_pt * z_leak_pt**2 * self.R_lisn**2 + noise_pt * self.R_lisn**2 * z_leak_pt + noise_pt * z_leak_pt * self.R_lisn**2 + noise_pt * z_leak_pt**2 * self.R_lisn**2
+            B3 = noise_pt * z_leak_pt**2 * self.R_lisn**2 + noise_pt * z_leak_pt**2 * self.R_lisn
+            B4 = - attenuation_pt * self.R_lisn**3 - attenuation_pt * z_cap_y_pt * z_leak_pt * self.R_lisn**3 - attenuation_pt * noise_pt * self.R_lisn**2 - attenuation_pt * noise_pt * z_cap_y_pt * z_leak_pt * self.R_lisn**2
+            B = B1 + B2 + B3 + B4
+
+            C = self.R_lisn**3 * z_leak_pt + z_cap_y_pt * z_leak_pt**2 * self.R_lisn**3 + noise_pt * z_leak_pt**2 + self.R_lisn**3
+
+            discriminant = B**2 - 4*A*C
+            
+            if discriminant > 0:
+                root1 = abs(-B + math.sqrt(discriminant)) / (2 * A)
+                root2 = abs(-B - math.sqrt(discriminant)) / (2 * A)
+                z_root_list_1.append(max(root1, root2))
+
+            elif discriminant == 0:
+                root = abs(-B / (2 * A))
+                z_root_list_1.append(root)
+
+            else:
+                real_part = -B / (2*A)
+                imaginary_part = math.sqrt(-discriminant) / (2*A)
+                root1 = abs(complex(real_part, imaginary_part))
+                root2 = abs(complex(real_part, -imaginary_part))
+                z_root_list_1.append(max(root1, root2))
+        return z_root_list_1
+
+
 
     # Helps calculate the X cap impedance for a specific noise source impedance.
     def find_Z_x_helper(self, Z_noise_source:np.ndarray):
@@ -523,6 +718,7 @@ class Differential_Mode_Estimate(Estimate):
         self.needed_Z_x = np.minimum(self.find_Z_x_helper(self.min_noise),self.find_Z_x_helper(self.max_noise))
         return
     
+    #x caps are considered the same
     def find_Z_x_helper_PI2(self, Z_noise_source:np.ndarray):
         z_x_result_array = []
         check = None
@@ -546,14 +742,13 @@ class Differential_Mode_Estimate(Estimate):
                 if Z_x_cap_random == 1000 and check == 0:
                     z_x_result_array.append(temp)
                     break
-        #print ('z_x_result_array')
-        #print (z_x_result_array)
+
         return z_x_result_array
     
     def find_Zx_PI2(self, base: Spectrum_Measurement, limit: np.ndarray):
         self.needed_attenuation = 10 ** (base.measurement/20) / 10 ** (limit/20)
 
-        self.needed_Z_x_PI2 = np.maximum(self.find_Z_x_helper_PI2(self.min_noise), self.find_Z_x_helper_PI2(self.max_noise))
+        self.needed_Z_x_PI2 = np.minimum(self.find_Z_x_helper_PI2(self.min_noise), self.find_Z_x_helper_PI2(self.max_noise))
         return
     
 
@@ -589,13 +784,14 @@ class Differential_Mode_Estimate(Estimate):
     def find_Zx_CCL(self, base: Spectrum_Measurement, limit: np.ndarray):
         self.needed_attenuation = 10 ** (base.measurement/20) / 10 ** (limit/20)
 
-        self.needed_Z_x_CCL = np.maximum(self.find_Z_x_helper_CCL(self.min_noise), self.find_Z_x_helper_CCL(self.max_noise))
+        self.needed_Z_x_CCL = np.minimum(self.find_Z_x_helper_CCL(self.min_noise), self.find_Z_x_helper_CCL(self.max_noise))
         return
 
     def find_Zx_LCC(self, base: Spectrum_Measurement, limit: np.ndarray):
         self.needed_attenuation = 10 ** (base.measurement/20) / 10 ** (limit/20)
 
-        self.needed_Z_x_LCC = np.maximum(self.find_Z_x_helper_LCC(self.min_noise), self.find_Z_x_helper_LCC(self.max_noise))
+        self.needed_Z_x_LCC = np.minimum(self.find_Z_x_helper_LCC(self.min_noise), self.find_Z_x_helper_LCC(self.max_noise))
+        return
 
 # Holds the noise limits in a form appropriate for calculations and display.
 class Noise_Limit:
