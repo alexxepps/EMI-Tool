@@ -439,7 +439,7 @@ class FilterCM(Window):
     def __init__(self, parent_frame: ttk.Frame) -> None:
         super().__init__(parent_frame)
 
-        self.title = "CM Filter Design"
+        self.title = "Common Mode Filter Design"
 
         self.interface_frame = ttk.Frame(self.root)
         self.interface_frame.pack(side='left', fill="y")
@@ -459,47 +459,83 @@ class FilterCM(Window):
         image_frame = ttk.Frame(self.interface_frame)
         image_frame.pack()
 
-        label = ttk.Label(options_frame, text="To find the minimum impedance curve for the CM choke,")
+        label = ttk.Label(options_frame, text="To find the minimum impedance curve for the Common Mode choke(L),")
         label.pack()
         label = ttk.Label(options_frame, text="enter the desired margin from the FCC noise limit and the")
         label.pack()
-        label = ttk.Label(options_frame, text="Y cap that will be used.")
+        label = ttk.Label(options_frame, text="Y cap (Cy_1) that will be used.")
+        label.pack()
+        label = ttk.Label(options_frame, text="")
         label.pack()
 
         # noise limit
         self.margin = label_entry(options_frame, "Noise Limit Margin [dBuV]", 6)
 
         # Y Cap
-        self.y_cap, self.y_cap_unit = label_entry_unit(options_frame, "Y Cap Value:", 1000, Cap_Dict, "pF")
+        self.y_cap, self.y_cap_unit = label_entry_unit(options_frame, "Y Cap (Cy_1) Value:", 1000, Cap_Dict, "pF")
 
-        self.y_cap_1, self.y_cap_1_unit = label_entry_unit(options_frame, "Input Y cap value:", 1000, Cap_Dict, "pF")
+        #self.y_cap_1, self.y_cap_1_unit = label_entry_unit(options_frame, "Y cap (Cy_2) value:", 1000, Cap_Dict, "pF")
+        
+        label = ttk.Label(options_frame, text="")
+        label.pack()
 
         #added option for LC or CL filter for CM emi filter
-        label = ttk.Label(options_frame, text="Was a CM CL or LC filter used? C is the Ycap.")
+        label = ttk.Label(options_frame, text="Press the topology button to find the minimum impedance curve to pass FCC.")
         label.pack()
+
+        label = ttk.Label(options_frame, text="")
+        label.pack()
+
+        def combine_funcs(*funcs):
+            def combined_func(*tp_select, **show):
+                for f in funcs:
+                    f(*tp_select, **show)
+            return combined_func
 
         #buttons that choose CM LC or CL filter
         #command button will option which calculation to make
-        button(options_frame, "LCy", self.topology_select_LC)
-        button(options_frame, "CyL", self.topology_select_CL)
-        button(options_frame, "CyLCy", self.topology_select_CyLCy)
+        #button(options_frame, "Input - L - Cy - Noise Source", self.topology_select_LC)
+        button_color(options_frame, "Topology 1: Input-L-Cy_1-Noise Source", combine_funcs(self.topology_select_LC, self.show_suggested_impedance), "blue")
+        label = ttk.Label(options_frame, text="")
+        label.pack()
+        button_color(options_frame, "Topology 2: Input-Cy_1-L-Noise Source", combine_funcs(self.topology_select_CL, self.show_suggested_impedance), "blue")
+        label = ttk.Label(options_frame, text="")
+        label.pack()
+        button_color(options_frame, "Topology 3: Input-Cy_2-L-Cy_1-Noise Source", combine_funcs(self.topology_select_CyLCy, self.show_suggested_impedance), "blue")
+        self.y_cap_1, self.y_cap_1_unit = label_entry_unit(options_frame, "Y Cap (Cy_2) Value:", 1000, Cap_Dict, "pF")
+        label = ttk.Label(options_frame, text="")
+        label.pack()
 
-        button(options_frame, "Calculate Min Impedance Curve", self.show_suggested_impedance)
+        #button(options_frame, "Calculate Min Impedance Curve", self.show_suggested_impedance)
+        label = ttk.Label(options_frame, text="Press the Compare button to compare all topologies.")
+        label.pack()
 
-        button(options_frame, "Compare topologies", self.CM_topology_compare)
+        button(options_frame, "Compare", combine_funcs(self.CM_topology_compare, self.show_suggested_impedance))
+        label = ttk.Label(options_frame, text="")
+        label = ttk.Label(options_frame, text="")
+        label.pack()
+        label = ttk.Label(options_frame, text="Press the save buttons to export suggested minimum choke impedance curve to excel.")
+        label.pack()
 
+        
         #save LC curve
-        button(options_frame, "Save LCy Suggested Choke Impedance Curve", self.save_curve_LC)
+        button(options_frame, "Save Topology 1", self.save_curve_LC)
+        label = ttk.Label(options_frame, text="")
+        label.pack()
         #save CL curve
-        button(options_frame, "Save CyL Suggested Choke Impedance Curve", self.save_curve)
+        button(options_frame, "Save Topology 2", self.save_curve)
+        label = ttk.Label(options_frame, text="")
+        label.pack()
         #save CLC curve
-        button(options_frame, "Save CyLCy Suggested Choke Impedance Curve", self.save_curve_CLC)
+        button(options_frame, "Save Topology 3", self.save_curve_CLC)
+        label = ttk.Label(options_frame, text="")
+        label.pack()
 
 
         # Inductor
-        label = ttk.Label(options_frame, text="To see the estimated CM performance of a particular choke")
+        label = ttk.Label(options_frame, text="To see the estimated Common Mode Noise performance of a particular choke")
         label.pack()
-        label = ttk.Label(options_frame, text="in a LC or CL filter, select data file here:")
+        label = ttk.Label(options_frame, text="click the topology you want to test, select choke impedance file, and import file here:")
         label.pack()
 
         filter_frame = ttk.Frame(options_frame)
@@ -552,20 +588,26 @@ class FilterCM(Window):
             CM_est.CLC_topology_math(y_cap, y_cap_1, filter_choke)
             CM_est.find_Z_choke_CLC(CM_base, Limit.limit)
 
-            CLCz = np.mean(CM_est.needed_worst_Z_choke_CLC)            
+            CLCz = np.mean(CM_est.needed_worst_Z_choke_CLC)
+            print("CLCz")
+            print(CLCz)            
             LCz = np.mean(CM_est.needed_worst_Z_choke_LC)
+            print("LCz")
+            print(LCz)
             CLz = np.mean(CM_est.needed_worst_Z_choke)
+            print("CLz")
+            print(CLz)
             
-            if CLz < LCz < CLCz:
-                label = ttk.Label(options_frame, text="CyL is the best topology for this noise source")
+            if CLz < LCz and CLz < CLCz:
+                label = ttk.Label(options_frame, text="Topology 2 is the best topology for this noise source", foreground="green")
                 label.pack()
                 print("CLz is better")
-            elif LCz < CLz < CLCz:
-                label = ttk.Label(options_frame, text="LCy is the best topology for this noise source")
+            elif LCz < CLz and LCz < CLCz:
+                label = ttk.Label(options_frame, text="Topology 1 is the best topology for this noise source", foreground="green")
                 label.pack()
                 print("LCz is better")
-            elif CLCz < LCz < CLz:
-                 label = ttk.Label(options_frame, text="CyLCy is the best topology for this noise source")
+            elif CLCz < LCz and CLCz < CLz:
+                 label = ttk.Label(options_frame, text="Topology 3 is the best topology for this noise source", foreground="green")
                  label.pack()
                  print("CLCz is better")
             else: 
@@ -577,18 +619,18 @@ class FilterCM(Window):
         needed_impedance.plot(0, CM_base.freq, CM_base.measurement, "Baseline")
         needed_impedance.plot(0, Limit.freq, Limit.FCC, "FCC Limit")
         needed_impedance.plot(0, Limit.freq, Limit.limit, "Limit with Margin")
-        needed_impedance.prettify(0, 'Noise\n[dB$\mu$V]', 'CM Noise')
+        needed_impedance.prettify(0, 'Noise\n[dB$\mu$V]', 'Common Mode Noise without filter')
        
         if CM_Topo is None:
-            needed_impedance.plot(1, CM_base.freq, CM_est.needed_worst_Z_choke, "Suggested Choke Impedance")
+            needed_impedance.plot(1, CM_base.freq, CM_est.needed_worst_Z_choke, "TP2: Suggested Choke Impedance")
         elif CM_Topo == 1:
-            needed_impedance.plot(1, CM_base.freq, CM_est.needed_worst_Z_choke_LC, "Suggested Choke Impedance")
+            needed_impedance.plot(1, CM_base.freq, CM_est.needed_worst_Z_choke_LC, "TP1: Suggested Choke Impedance")
         elif CM_Topo == 3: 
-            needed_impedance.plot(1, CM_base.freq, CM_est.needed_worst_Z_choke_CLC, "Suggested Choke Impedance")
+            needed_impedance.plot(1, CM_base.freq, CM_est.needed_worst_Z_choke_CLC, "TP3: Suggested Choke Impedance")
         elif CM_Topo == 2:
-            needed_impedance.plot(1, CM_base.freq, CM_est.needed_worst_Z_choke, "Suggested Choke Impedance for CyL")
-            needed_impedance.plot(1, CM_base.freq, CM_est.needed_worst_Z_choke_LC, "Suggested Choke Impedance for LCy")
-            needed_impedance.plot(1, CM_base.freq, CM_est.needed_worst_Z_choke_CLC, "Suggested Choke Impedance for CyLCy")
+            needed_impedance.plot(1, CM_base.freq, CM_est.needed_worst_Z_choke, "TP2: Suggested Choke Impedance")
+            needed_impedance.plot(1, CM_base.freq, CM_est.needed_worst_Z_choke_LC, "TP1: Suggested Choke Impedance")
+            needed_impedance.plot(1, CM_base.freq, CM_est.needed_worst_Z_choke_CLC, "TP3: Suggested Choke Impedance")
         needed_impedance.log_scale(1)
         needed_impedance.prettify(1, 'Impedance[$\Omega$]', 'Impedance Vs Freq, Log Scale')
 
@@ -623,12 +665,12 @@ class FilterCM(Window):
                 CM_est.CLC_topology(y_cap, y_cap_1, filter_choke)
         else:
             if CM_Topo is None:
-                actual_impedance.plot(0, CM_base.freq, CM_est.needed_worst_Z_choke, "Suggested Choke Impedance")
+                actual_impedance.plot(0, CM_base.freq, CM_est.needed_worst_Z_choke, "TP2: Suggested Choke Impedance")
             elif CM_Topo == 1:
-                actual_impedance.plot(0, CM_base.freq, CM_est.needed_worst_Z_choke_LC, "Suggested Choke Impedance")
+                actual_impedance.plot(0, CM_base.freq, CM_est.needed_worst_Z_choke_LC, "TP1: Suggested Choke Impedance")
             elif CM_Topo == 3:
-                actual_impedance.plot(0, CM_base.freq, CM_est.needed_worst_Z_choke_CLC, "Suggested Choke Impedance")
-        actual_impedance.plot(0, actual_choke.freq, actual_choke.impedance, "Actual Choke Impedance")
+                actual_impedance.plot(0, CM_base.freq, CM_est.needed_worst_Z_choke_CLC, "TP3: Suggested Choke Impedance")
+        actual_impedance.plot(0, actual_choke.freq, actual_choke.impedance, "Actual Choke Impedance Imported")
         actual_impedance.log_scale(0)
         actual_impedance.prettify(0, 'Impedance[$\Omega$]', 'Impedance Vs Freq, Log Scale')
             #------------------------------------------------------------------------------------------------------------------------------
@@ -643,7 +685,8 @@ class FilterCM(Window):
         actual_impedance.plot(1, CM_est.freq, CM_est.worst_estimate, "Worst Noise Estimate")
         actual_impedance.plot(1, Limit.freq, Limit.FCC, "FCC Limit")
         actual_impedance.plot(1, Limit.freq, Limit.limit, "Limit with Margin")
-        actual_impedance.prettify(1, 'Noise\n[dB$\mu$V]', 'CM Noise')
+        actual_impedance.log_scale_x(1)
+        actual_impedance.prettify(1, 'Noise\n[dB$\mu$V]', 'Common Mode Noise with filter')
 
         actual_impedance.draw(self.graph_frame)
 
@@ -705,20 +748,27 @@ class FilterCM(Window):
     def topology_select_CL(self):
         global CM_Topo
         CM_Topo = None
+        self.show_suggested_impedance
+        return
         
         
     def topology_select_LC(self):
         global CM_Topo
         CM_Topo = 1
-        
+        self.show_suggested_impedance
+        return
 
     def CM_topology_compare(self):
         global CM_Topo
         CM_Topo = 2
+        self.show_suggested_impedance
+        return
 
     def topology_select_CyLCy(self):
         global CM_Topo
         CM_Topo = 3
+        self.show_suggested_impedance
+        return
 
 
 class FilterDM(Window):
@@ -726,7 +776,7 @@ class FilterDM(Window):
     def __init__(self, parent_frame: ttk.Frame) -> None:
         super().__init__(parent_frame)
 
-        self.title = "DM Filter Design"
+        self.title = "Differential Mode Filter Design"
 
         self.interface_frame = ttk.Frame(self.root)
         self.interface_frame.pack(side='left', fill="y")
@@ -746,16 +796,30 @@ class FilterDM(Window):
         image_frame = ttk.Frame(self.interface_frame)
         image_frame.pack()
 
-        label = ttk.Label(options_frame, text="To find the maximum impedance curve for the X Cap, enter the")
+        label = ttk.Label(options_frame, text="Enter the desired margin from the FCC noise limit")
         label.pack()
-        label = ttk.Label(options_frame, text="desired margin from the FCC noise limit and both the leakage")
-        label.pack()
-        label = ttk.Label(options_frame, text="impedance of the CM Choke and the Y cap that will be used.")
-        label.pack()
-
-
         # noise limit
         self.margin = label_entry(options_frame, "Noise Limit Margin [dBuV]", 6)
+        label = ttk.Label(options_frame, text="")
+        label.pack()
+
+        label = ttk.Label(options_frame, text="Enter the X Capacitor that was used.")
+        label.pack()
+        self.x_cap, self.x_cap_unit = label_entry_unit(options_frame, "X Capacitor (Cx) - Capacitance", 0.15, Cap_Dict, "uF")
+        
+
+        label = ttk.Label(options_frame, text="Select a file with the measured choke leakage impedance")
+        label.pack()
+        #label = ttk.Label(options_frame, text="impedance of the CM Choke and the Y cap that will be used.")
+        #label.pack()
+
+        def combine_funcs(*funcs):
+            def combined_func(*tp_select, **show):
+                for f in funcs:
+                    f(*tp_select, **show)
+            return combined_func
+        # noise limit
+        #self.margin = label_entry(options_frame, "Noise Limit Margin [dBuV]", 6)
 
         # Inductor - leakage
         label = ttk.Label(options_frame, text="CM Choke Leakage data File:")
@@ -772,44 +836,60 @@ class FilterDM(Window):
 
         filter_frame.pack()
 
-        label = ttk.Label(options_frame, text="Were two Xcaps used in addition to Ycaps for the PI filter?")
-        label.pack()
-        label = ttk.Label(options_frame, text="Push the button to select the topology used")
-        label.pack()
-        label = ttk.Label(options_frame, text="to find attenuation and required choke impedance")
+        label = ttk.Label(options_frame, text="")
         label.pack()
 
-        button(options_frame, "Ycap Choke Xcap", self.topology_select_CyLCx)
-        select_button.pack(side="left")
-        button(options_frame, "Xcap Choke Ycap Xcap", self.topology_select_CxLCyCx)
-        select_button.pack(side="left")
-        button(options_frame, "Ycap Xcap Choke", self.topology_select_CyCxL)
-        select_button.pack(side="left")
-        button(options_frame, "Choke Ycap Xcap", self.topology_select_LCyCx)
-        select_button.pack(side="left")
-        button(options_frame, "Xcap Choke Ycap", self.topology_select_CxLCy)
-        select_button.pack(side="left")
+        label = ttk.Label(options_frame, text="Enter X capacitor values to calculate differential mode noise without filter")
+        label.pack()
+
+        self.x_cap_1, self.x_cap_unit = label_entry_unit(options_frame, "X Capacitor input (Cx1) - Capacitance", 0.15, Cap_Dict, "uF")
+        self.x_cap_2, self.x_cap_unit = label_entry_unit(options_frame, "X Capacitor output (Cx2) - Capacitance", 0.15, Cap_Dict, "uF")
+
         
-        label = ttk.Label(options_frame, text="Push the button to compare choke impedance per topology")
+        label = ttk.Label(options_frame, text="Push the topology button to find the minimum impedance curve to pass FCC")
         label.pack()
-        button(options_frame, "Compare topologies", self.DM_topology_compare)
+        
+
+        button_color(options_frame, "Topology 1: Input-Cy-L-Cx-Noise Source", combine_funcs(self.topology_select_CyLCx, self.show_suggested_impedance), "blue")
+        select_button.pack(side="left")
+        label = ttk.Label(options_frame, text="")
+        label.pack()
+        button_color(options_frame, "Topology 2: Input-Cx1-L-Cy-Cx2-Noise Source", combine_funcs(self.topology_select_CxLCyCx, self.show_suggested_impedance), "blue")
+        select_button.pack(side="left")
+        label = ttk.Label(options_frame, text="")
+        label.pack()
+        button_color(options_frame, "Topology 3: Input-Cy-Cx-L-Noise Source", combine_funcs(self.topology_select_CyCxL, self.show_suggested_impedance), "blue")
+        select_button.pack(side="left")
+        label = ttk.Label(options_frame, text="")
+        label.pack()
+        button_color(options_frame, "Topology 4: Input-L-Cy-Cx-Noise Source", combine_funcs(self.topology_select_LCyCx, self.show_suggested_impedance), "blue")
+        select_button.pack(side="left")
+        label = ttk.Label(options_frame, text="")
+        label.pack()
+        button_color(options_frame, "Topology 5: Input-Cx-L-Cy-Noise Source", combine_funcs(self.topology_select_CxLCy, self.show_suggested_impedance), "blue")
         select_button.pack(side="left")
 
-       
-        button(options_frame, "Calculate Max Impedance Curve", self.show_suggested_impedance)
-
-        label = ttk.Label(options_frame, text="To see the estimated DM performance of a particular")
+        label = ttk.Label(options_frame, text="")
         label.pack()
-        label = ttk.Label(options_frame, text="capacitor in a Pi filter, specify the capacitance:")
+        
+        label = ttk.Label(options_frame, text="Push the Compare button to compare choke impedance per topology")
+        label.pack()
+        button(options_frame, "Compare", combine_funcs(self.DM_topology_compare, self.show_suggested_impedance))
+        select_button.pack(side="left")
+
+        label = ttk.Label(options_frame, text="")
+        label.pack()
+        
+
+        label = ttk.Label(options_frame, text="To see the estimated Differential Mode performance of a particular")
+        label.pack()
+        label = ttk.Label(options_frame, text="X capacitor in this topology, click on the topology you want to test and specify the capacitance:")
         label.pack()
 
         # X Cap
-        self.x_cap, self.x_cap_unit = label_entry_unit(options_frame, "X Capacitor - Capacitance", 0.15, Cap_Dict, "uF")
+        
 
-        label = ttk.Label(options_frame, text="If two Xcaps were used then fill out the values below")
-
-        self.x_cap_1, self.x_cap_unit = label_entry_unit(options_frame, "X Capacitor input - Capacitance", 0.15, Cap_Dict, "uF")
-        self.x_cap_2, self.x_cap_unit = label_entry_unit(options_frame, "X Capacitor output - Capacitance", 0.15, Cap_Dict, "uF")
+        self.x_cap_0, self.x_cap_unit = label_entry_unit(options_frame, "X Capacitor - Capacitance", 0.15, Cap_Dict, "uF")
 
         button(options_frame, "Est Cap Performance", self.show_actual_impedance)
 
@@ -823,7 +903,8 @@ class FilterDM(Window):
 
         options_frame = ttk.Frame(self.interface_frame)
         options_frame.pack()
-
+        print("x_cap")
+        print(x_cap)
         margin = float(self.margin.get())
 
         Limit = emi.Noise_Limit(DM_base.freq)
@@ -860,56 +941,64 @@ class FilterDM(Window):
             DM_est.find_Zx_CxLCy(DM_base, Limit.limit)
             
             YLX = np.mean(DM_est.needed_Z_x)
+            print("ylx")
+            print(YLX)
             YXL = np.mean(DM_est.needed_Z_x_CCL)
+            print("yxl")
+            print(YXL)
             XLYX = np.mean(DM_est.needed_Z_x_PI2)
+            print("xlyx")
+            print(XLYX)
             LYX = np.mean(DM_est.needed_Z_x_LCC)
-            XLY = np.mean(DM_est.needed_Z_x_CxLCy)
+            print("lyx")
+            print(LYX)
+            XLY1 = np.mean(DM_est.needed_Z_x_CxLCy)
+            XLY = abs(XLY1)
+            print("xly")
+            print(XLY)
 
             if YLX > YXL and YLX > XLYX and YLX > LYX and YLX > XLY:
-                label = ttk.Label(options_frame, text="CyLCx is the best topology for this noise source")
+                label = ttk.Label(options_frame, text="Topology 1 is the best topology for this noise source", foreground="green")
                 label.pack()
             elif XLYX > YLX and XLYX > YXL and YLX > LYX and XLYX > XLY:
-                label = ttk.Label(options_frame, text="CxLCyCx is the best topology for this noise source")
+                label = ttk.Label(options_frame, text="Topology 2 is the best topology for this noise source", foreground="green")
                 label.pack()
             elif YXL > YLX and YXL > XLYX and YXL > LYX and YXL > XLY:
-                label = ttk.Label(options_frame, text="CyCxL is the best topology for this noise source")
+                label = ttk.Label(options_frame, text="Topology 3 is the best topology for this noise source", foreground="green")
                 label.pack()
             elif LYX > YLX and LYX > XLYX and LYX > YXL and LYX > XLY:
-                label = ttk.Label(options_frame, text="LCyCx is the best topology for this noise source")
+                label = ttk.Label(options_frame, text="Topology 4 is the best topology for this noise source", foreground="green")
                 label.pack()
             elif XLY > YLX and XLY > XLYX and XLY > YXL and XLY > LYX:
-                label = ttk.Label(options_frame, text="XLY is the best topology for this noise source")
+                label = ttk.Label(options_frame, text="Topology 5 is the best topology for this noise source", foreground="green")
                 label.pack()
-
-
-
 
         needed_impedance = Embedded_Graph(2)
         needed_impedance.plot(0, DM_base.freq, DM_base.measurement, "Baseline")
         needed_impedance.plot(0, Limit.freq, Limit.FCC, "FCC Limit")
         needed_impedance.plot(0, Limit.freq, Limit.limit, "Limit with Margin")
-        needed_impedance.prettify(0, 'Noise\n[dB$\mu$V]', 'DM Noise')
+        needed_impedance.prettify(0, 'Noise\n[dB$\mu$V]', 'Differential Mode Noise without filter')
         if DM_Topo is None:
-            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x, "Suggested X Capacitor Impedance")
+            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x, "TP1: Suggested X Capacitor Impedance")
             needed_impedance.prettify(1, 'Impedance[$\Omega$]', 'Impedance Vs Freq, Log Scale')
         elif DM_Topo == 1:
-            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_PI2, "Suggested X Capacitor Impedance")
+            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_PI2, "TP2: Suggested X Capacitor Impedance")
             needed_impedance.prettify(1, 'Impedance[$\Omega$]', 'Impedance Vs Freq, Log Scale')
         elif DM_Topo == 2:
-            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_CCL, "Suggested X Capacitor Impedance")
+            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_CCL, "TP3: Suggested X Capacitor Impedance")
             needed_impedance.prettify(1, 'Impedance[$\Omega$]', 'Impedance Vs Freq, Log Scale')
         elif DM_Topo == 3:
-            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_LCC, "Suggested X Capacitor Impedance")
+            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_LCC, "TP4: Suggested X Capacitor Impedance")
             needed_impedance.prettify(1, 'Impedance[$\Omega$]', 'Impedance Vs Freq, Log Scale')
         elif DM_Topo == 5:
-            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_CxLCy, "Suggested X Capacitor Impedance")
+            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_CxLCy, "TP5: Suggested X Capacitor Impedance")
             needed_impedance.prettify(1, 'Impedance[$\Omega$]', 'Impedance Vs Freq, Log Scale')
         elif DM_Topo == 4:
-            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x, "Suggested X Capacitor Impedance for Cy-L-Cx Configuration")
-            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_PI2, "Suggested X Capacitor Impedance for Cx-L-Cy-Cx Configuration")
-            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_CCL, "Suggested X Capacitor Impedance for Cy-Cx-L Configuration")
-            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_LCC, "Suggested X Capacitor Impedance for L-Cy-Cx Configuration")
-            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_CxLCy, "Suggested X Capacitor Impedance for Cx-L-Cy Configuration")
+            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x, "TP1: Suggested X Capacitor Impedance")
+            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_PI2, "TP2: Suggested X Capacitor Impedance")
+            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_CCL, "TP3: Suggested X Capacitor Impedance")
+            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_LCC, "TP4: Suggested X Capacitor Impedance")
+            needed_impedance.plot(1, DM_base.freq, DM_est.needed_Z_x_CxLCy, "TP5: Suggested X Capacitor Impedance")
         needed_impedance.log_scale(1)
         needed_impedance.prettify(1, 'Impedance[$\Omega$]', 'Impedance Vs Freq, Log Scale')
 
@@ -923,7 +1012,7 @@ class FilterDM(Window):
         #x_cap_2 = float(self.x_cap_1.get()) * self.x_cap_unit.get()
 
         margin = float(self.margin.get())
-        x_cap = float(self.x_cap.get()) * self.x_cap_unit.get()
+        x_cap_0 = float(self.x_cap_0.get()) * self.x_cap_unit.get()
 
         Limit = emi.Noise_Limit(DM_base.freq)
         Limit.add_margin(margin)
@@ -934,31 +1023,31 @@ class FilterDM(Window):
             DM_est = emi.Differential_Mode_Estimate()
             DM_est.add_noise(DM_Zs)
         elif DM_Topo is None:
-            actual_impedance.plot(0, DM_base.freq, DM_est.needed_Z_x, "Suggested X Capacitor Impedance")
+            actual_impedance.plot(0, DM_base.freq, DM_est.needed_Z_x, "TP1: Suggested X Capacitor Impedance")
         elif DM_Topo == 1:
-            actual_impedance.plot(0, DM_base.freq, DM_est.needed_Z_x_PI2, "Suggested X Capacitor Impedance")
+            actual_impedance.plot(0, DM_base.freq, DM_est.needed_Z_x_PI2, "TP2: Suggested X Capacitor Impedance")
         elif DM_Topo == 2:
-            actual_impedance.plot(0, DM_base.freq, DM_est.needed_Z_x_CCL, "Suggested X Capacitor Impedance")
+            actual_impedance.plot(0, DM_base.freq, DM_est.needed_Z_x_CCL, "TP3: Suggested X Capacitor Impedance")
         elif DM_Topo == 3:
-            actual_impedance.plot(0, DM_base.freq, DM_est.needed_Z_x_LCC, "Suggested X Capacitor Impedance")
+            actual_impedance.plot(0, DM_base.freq, DM_est.needed_Z_x_LCC, "TP4: Suggested X Capacitor Impedance")
         elif DM_Topo == 5:
-            actual_impedance.plot(0, DM_base.freq, DM_est.needed_Z_x_CxLCy, "Suggested X Capacitor Impedance")
+            actual_impedance.plot(0, DM_base.freq, DM_est.needed_Z_x_CxLCy, "TP5: Suggested X Capacitor Impedance")
 
 
         if DM_Topo is None:
-            DM_est.PI_topology(x_cap, y_cap, leakage_choke)
+            DM_est.PI_topology(x_cap_0, y_cap, leakage_choke)
             DM_est.calculate_noise(DM_base)
         elif DM_Topo == 1:
-            DM_est.PI2_topology_one_x(x_cap, y_cap, leakage_choke)
+            DM_est.PI2_topology_one_x(x_cap_0, y_cap, leakage_choke)
             DM_est.calculate_noise(DM_base)
         elif DM_Topo == 2:
-            DM_est.CCL_topology(x_cap, y_cap, leakage_choke)
+            DM_est.CCL_topology(x_cap_0, y_cap, leakage_choke)
             DM_est.calculate_noise(DM_base)
         elif DM_Topo == 3:
-            DM_est.LCC_topology(x_cap, y_cap, leakage_choke)
+            DM_est.LCC_topology(x_cap_0, y_cap, leakage_choke)
             DM_est.calculate_noise(DM_base)
         elif DM_Topo == 5:
-            DM_est.CxLCy_topology(x_cap, y_cap, leakage_choke)
+            DM_est.CxLCy_topology(x_cap_0, y_cap, leakage_choke)
             DM_est.calculate_noise(DM_base)
 
         #looking for two values in PI2, thats why theres an error
@@ -970,8 +1059,9 @@ class FilterDM(Window):
         actual_impedance.plot(1, DM_est.freq, DM_est.worst_estimate, "Worst Noise Estimate")
         actual_impedance.plot(1, Limit.freq, Limit.FCC, "FCC Limit")
         actual_impedance.plot(1, Limit.freq, Limit.limit, "Limit with Margin")
-        actual_impedance.prettify(1, 'Noise\n[dB$\mu$V]', 'DM Noise')
-
+        actual_impedance.log_scale_x(1)
+        actual_impedance.prettify(1, 'Noise\n[dB$\mu$V]', 'Differential Mode Noise with filter')
+        
         actual_impedance.draw(self.graph_frame)
     
     def gen_template(self):
@@ -1039,6 +1129,12 @@ def label_entry(parent:  ttk.Frame, TXT: str, VAL: float):
 def button(parent:  ttk.Frame, TXT: str, FNC):
         row_frame = ttk.Frame(parent)
         button = ttk.Button(row_frame, text=TXT, command=FNC)
+        button.pack()
+        row_frame.pack(side='top', fill='both', expand=1)
+
+def button_color(parent: ttk.Frame, TXT: str, FNC, clr):
+        row_frame = ttk.Frame(parent)
+        button = tk.Button(row_frame, text=TXT, command=FNC, activebackground=clr)
         button.pack()
         row_frame.pack(side='top', fill='both', expand=1)
 

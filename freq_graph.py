@@ -33,6 +33,10 @@ class Embedded_Graph():
     def log_scale(self, subplot: int):
         self.axs[subplot].set_yscale("log")
         self.axs[subplot].set_xscale("log")
+
+    # sets a specific subplot x-axis to log scaling
+    def log_scale_x(self, subplot: int):
+        self.axs[subplot].set_xscale("log")
         
     # selects frequency unit - MHz, KHz, or Hz, with appropriate divisor
     def select_unit(self, x_data: np.ndarray) -> tuple:

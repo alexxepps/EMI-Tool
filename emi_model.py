@@ -301,12 +301,12 @@ class Common_Mode_Estimate(Estimate):
             A = z_cap_pt * self.R_lisn
             CC = C + noise_pt * (self.R_lisn)**3 + noise_pt * z_cap_pt * (self.R_lisn)**2
             BB = 2 * B + 2 * (noise_pt * (self.R_lisn)**2) + noise_pt * z_cap_pt * self.R_lisn
-            AA = abs(A + noise_pt * self.R_lisn)
+            AA = A + noise_pt * self.R_lisn
             DD = B + noise_pt * z_cap_pt * self.R_lisn
             EE = C + noise_pt * z_cap_pt * (self.R_lisn)**2
             X = attenuation_pt * EE
-            CCC = abs(CC - X)
-            BBB = abs(BB  - (attenuation_pt * DD))
+            CCC = CC - X
+            BBB = BB  - (attenuation_pt * DD)
             discriminant = BBB**2 - 4 * AA * CCC
             #print(discriminant)
 
@@ -325,7 +325,8 @@ class Common_Mode_Estimate(Estimate):
                 imaginary_part = math.sqrt(-discriminant) / (2*AA)
                 root1 = abs(complex(real_part, imaginary_part))
                 root2 = abs(complex(real_part, -imaginary_part))
-                z_root_list.append(max(root1, root2))
+                z_root_list.append(abs(max(root1, root2)))
+                
         return z_root_list
                 
         #overall equation
@@ -358,7 +359,7 @@ class Common_Mode_Estimate(Estimate):
                 imaginary_part = math.sqrt(-discriminant) / (2*A)
                 root1 = abs(complex(real_part, imaginary_part))
                 root2 = abs(complex(real_part, -imaginary_part))
-                z_root_listt.append(max(root1, root2))
+                z_root_listt.append(abs(max(root1, root2)))
         return z_root_listt
             
     
@@ -682,10 +683,12 @@ class Differential_Mode_Estimate(Estimate):
                 root1 = abs(-B + math.sqrt(discriminant)) / (2 * A)
                 root2 = abs(-B - math.sqrt(discriminant)) / (2 * A)
                 z_root_list_1.append(max(root1, root2))
+                break
 
             elif discriminant == 0:
                 root = abs(-B / (2 * A))
                 z_root_list_1.append(root)
+                break
 
             else:
                 real_part = -B / (2*A)
@@ -693,6 +696,7 @@ class Differential_Mode_Estimate(Estimate):
                 root1 = abs(complex(real_part, imaginary_part))
                 root2 = abs(complex(real_part, -imaginary_part))
                 z_root_list_1.append(max(root1, root2))
+                break
         return z_root_list_1
 
 
