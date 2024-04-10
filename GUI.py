@@ -900,6 +900,7 @@ class FilterDM(Window):
         x_cap = float(self.x_cap.get()) * self.x_cap_unit.get()
         x_cap_1 = float(self.x_cap_1.get()) * self.x_cap_unit.get()
         x_cap_2 = float(self.x_cap_2.get()) * self.x_cap_unit.get()
+        #x_cap_0 = float(self.x_cap_0.get()) * self.x_cap_unit.get()
 
         options_frame = ttk.Frame(self.interface_frame)
         options_frame.pack()

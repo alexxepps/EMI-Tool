@@ -683,12 +683,12 @@ class Differential_Mode_Estimate(Estimate):
                 root1 = abs(-B + math.sqrt(discriminant)) / (2 * A)
                 root2 = abs(-B - math.sqrt(discriminant)) / (2 * A)
                 z_root_list_1.append(max(root1, root2))
-                break
+                
 
             elif discriminant == 0:
                 root = abs(-B / (2 * A))
                 z_root_list_1.append(root)
-                break
+                
 
             else:
                 real_part = -B / (2*A)
@@ -696,7 +696,7 @@ class Differential_Mode_Estimate(Estimate):
                 root1 = abs(complex(real_part, imaginary_part))
                 root2 = abs(complex(real_part, -imaginary_part))
                 z_root_list_1.append(max(root1, root2))
-                break
+                
         return z_root_list_1
 
 
