@@ -589,14 +589,29 @@ class FilterCM(Window):
             CM_est.find_Z_choke_CLC(CM_base, Limit.limit)
 
             CLCz = np.mean(CM_est.needed_worst_Z_choke_CLC)
-            print("CLCz")
-            print(CLCz)            
+            print("CLCz mean")
+            print(CLCz)
+            CLCz1 = np.max(CM_est.needed_worst_Z_choke_CLC)
+            print("Max impedance required")
+            print(CLCz1)
+            print("")
+
             LCz = np.mean(CM_est.needed_worst_Z_choke_LC)
-            print("LCz")
+            print("LCz mean")
             print(LCz)
+            LCz1 = np.max(CM_est.needed_worst_Z_choke_LC)
+            print("Max impedance required")
+            print(LCz1)
+            print("")
+
             CLz = np.mean(CM_est.needed_worst_Z_choke)
-            print("CLz")
+            print("CLz mean")
             print(CLz)
+            CLz1 = np.max(CM_est.needed_worst_Z_choke)
+            print("Max impedance required")
+            print(CLz1)
+            print("")
+
             
             if CLz < LCz and CLz < CLCz:
                 label = ttk.Label(options_frame, text="Topology 2 is the best topology for this noise source", foreground="green")
@@ -689,6 +704,14 @@ class FilterCM(Window):
         actual_impedance.prettify(1, 'Noise\n[dB$\mu$V]', 'Common Mode Noise with filter')
 
         actual_impedance.draw(self.graph_frame)
+
+        worst_est_max = np.max(CM_est.worst_estimate)
+        limit_fcc_min = np.min(Limit.FCC)
+        if worst_est_max > limit_fcc_min:
+            messagebox.showwarning("FCC limit exceeded", "Try a different choke, Y capacitor, and or topology")
+            return
+
+
 
     def save_curve(self):
         global CM_est
@@ -1064,6 +1087,12 @@ class FilterDM(Window):
         actual_impedance.prettify(1, 'Noise\n[dB$\mu$V]', 'Differential Mode Noise with filter')
         
         actual_impedance.draw(self.graph_frame)
+
+        worst_est_max = np.max(DM_est.worst_estimate)
+        limit_fcc_max = np.max(Limit.FCC)
+        if worst_est_max > limit_fcc_max:
+            messagebox.showwarning("FCC limit exceeded", "Try a new X capacitor or topology")
+            return
     
     def gen_template(self):
         choke_model.open_template()
