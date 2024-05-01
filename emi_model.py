@@ -286,7 +286,7 @@ class Common_Mode_Estimate(Estimate):
 
     def CL_topology_math_array_input(self, y_cap: Cap, cm_choke: Choke):
         # Recall that in the CM equivalent circuit, both y caps are in parallel...
-        self.Z_cap = y_cap.impedance
+        self.Z_cap = 2*y_cap.impedance
         self.Z_choke = cm_choke.impedance
 
     # handles calculations for a CL CM EMI circuit
@@ -308,7 +308,7 @@ class Common_Mode_Estimate(Estimate):
         # Recall that in the CM equivalent circuit, both y caps are in parallel...
         #self.Z_cap = -1j / (2*math.pi*self.freq*y_cap*2)
         self.Z_choke = cm_choke.impedance
-        self.Z_cap = y_cap.impedance
+        self.Z_cap = 2*y_cap.impedance
 
         # Calculate attenuation for CL topology using mean noise
         self.mean_attenuation = self.CL_topology_helper(self.mean_noise)
@@ -336,7 +336,7 @@ class Common_Mode_Estimate(Estimate):
     
     def LC_topology_math_array_input(self, y_cap: Cap, cm_choke: Choke):
         # Recall that in the CM equivalent circuit, both y caps are in parallel...
-        self.Z_cap = y_cap.impedance
+        self.Z_cap = 2*y_cap.impedance
         self.Z_choke = cm_choke.impedance
         return
     
@@ -359,7 +359,7 @@ class Common_Mode_Estimate(Estimate):
         # Recall that in the CM equivalent circuit, both y caps are in parallel...
         #self.Z_cap = -1j / (2*math.pi*self.freq*y_cap*2)
         self.Z_choke = cm_choke.impedance
-        self.Z_cap  = y_cap.impedance
+        self.Z_cap  = 2*y_cap.impedance
 
         # Calculate attenuation for CL topology using mean noise
         self.mean_attenuation = self.LC_topology_helper(self.mean_noise)
@@ -387,8 +387,8 @@ class Common_Mode_Estimate(Estimate):
         return
     
     def CLC_topology_math_array_input(self, y_cap: Cap, y_cap_1: Cap, cm_choke: Choke):
-        self.Z_cap = y_cap.impedance
-        self.Z_cap_1 = y_cap_1.impedance
+        self.Z_cap = 2*y_cap.impedance
+        self.Z_cap_1 = 2*y_cap_1.impedance
         self.Z_choke = cm_choke.impedance
         return
 
@@ -409,8 +409,8 @@ class Common_Mode_Estimate(Estimate):
     
     def CLC_topology_array_input(self, y_cap: Cap, y_cap_1: Cap, cm_choke: Choke):
         # Recall that in the CM equivalent circuit, both y caps are in parallel...
-        self.Z_cap = y_cap.impedance
-        self.Z_cap_1 = y_cap_1.impedance
+        self.Z_cap = 2*y_cap.impedance
+        self.Z_cap_1 = 2*y_cap_1.impedance
         self.Z_choke = cm_choke.impedance
 
         # Calculate attenuation for CL topology using mean noise
@@ -422,7 +422,7 @@ class Common_Mode_Estimate(Estimate):
         self.worst_attenuation = np.minimum(np.abs(attenuation_w_min_noise),np.abs(attenuation_w_max_noise))
         return
         
-    # Helps calculate the necessary choke impedance for a specific noise source impedance.
+    """"# Helps calculate the necessary choke impedance for a specific noise source impedance.
     def find_Z_choke_helper(self, Z_noise_source: np.ndarray) -> np.ndarray:
         A = np.abs((self.needed_attenuation * (self.R_lisn + Z_noise_source) * self.parallel_eqv(self.R_lisn, self.Z_cap)) / self.R_lisn)
         B = np.abs(self.parallel_eqv(self.R_lisn, self.Z_cap) + Z_noise_source)
@@ -461,6 +461,39 @@ class Common_Mode_Estimate(Estimate):
             else:
                 real_part = -BBB / (2*AA)
                 imaginary_part = math.sqrt(-discriminant) / (2*AA)
+                root1 = abs(complex(real_part, imaginary_part))
+                root2 = abs(complex(real_part, -imaginary_part))
+                z_root_list.append(abs(max(root1, root2)))
+                
+        return z_root_list"""
+    
+    def find_Z_choke_helper_LC(self, Z_noise_source: np.ndarray) -> np.ndarray:
+        z_root_list = []
+
+        for noise_pt, attenuation_pt, z_cap_pt in zip(Z_noise_source, self.needed_attenuation, self.Z_cap):
+            #variables for quadratic
+            A = z_cap_pt * self.R_lisn + noise_pt * self.R_lisn
+        
+            B = attenuation_pt * z_cap_pt * self.R_lisn**2 - attenuation_pt * z_cap_pt * self.R_lisn * noise_pt + self.R_lisn**2 * z_cap_pt + noise_pt * self.R_lisn**3 + self.R_lisn**2 * z_cap_pt + noise_pt * self.R_lisn**2 + noise_pt * z_cap_pt * self.R_lisn
+
+            C = -attenuation_pt * self.R_lisn * z_cap_pt - attenuation_pt * self.R_lisn**2 * z_cap_pt * noise_pt + self.R_lisn**3 * z_cap_pt + noise_pt * self.R_lisn**3 + noise_pt * z_cap_pt * self.R_lisn**2
+            
+            discriminant = B**2 - 4 * A * C
+            #print(discriminant)
+
+            #does quadratic math
+            if discriminant > 0:
+                root1 = abs(-B + math.sqrt(discriminant)) / (2 * A)
+                root2 = abs(-B - math.sqrt(discriminant)) / (2 * A)
+                z_root_list.append(max(root1, root2))
+                
+            elif discriminant == 0:
+                root = abs(-B / (2 * A))
+                z_root_list.append(root)
+                
+            else:
+                real_part = -B / (2*A)
+                imaginary_part = math.sqrt(-discriminant) / (2*A)
                 root1 = abs(complex(real_part, imaginary_part))
                 root2 = abs(complex(real_part, -imaginary_part))
                 z_root_list.append(abs(max(root1, root2)))
@@ -988,7 +1021,7 @@ class Differential_Mode_Estimate(Estimate):
         # find Z_x with worst case (min/max) noise
         self.needed_Z_x_CxLCy = np.minimum(self.find_Z_x_helper_CxLCy(self.min_noise),self.find_Z_x_helper_CxLCy(self.max_noise))
         return
-    
+    #-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     def find_Z_x_helper_CxLCy(self, Z_noise_source:np.ndarray):
         z_root_list_1 = []
 
