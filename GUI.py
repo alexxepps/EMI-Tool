@@ -87,6 +87,10 @@ class GUI():
         if type(self.current_state).__name__ == "FilterCM":
             self.filter_DM()
             return
+        
+        if type(self.current_state).__name__ == "FilterDM":
+            self.filter_CMDM()
+            return
     
     def previous_state(self):
         # if in noise impedance, go back to file select
@@ -100,6 +104,10 @@ class GUI():
         # if in DM filter, go back to CM filter
         if type(self.current_state).__name__ == "FilterDM":
             self.filter_CM()
+
+        # if in CMDM filter, go back to DM filter
+        if type(self.current_state).__name__ == "FilterCMDM":
+            self.filter_DM()
 
     # file selector window
     def file_selector(self):
@@ -192,6 +200,27 @@ class GUI():
         self.current_state = DM_generate
         self.create_nav_frame()
 
+    def filter_CMDM(self):
+        # assume window needs to be created
+        create_window = True
+        for window in self.windows:
+            if (type(window).__name__) == "FilterCMDM":
+                #window already exists
+                create_window = False
+                CMDM_generate = window
+            #hide all windows
+            window.root.pack_forget()
+        
+        if create_window:
+            CMDM_generate_frame = ttk.Frame(self.root)
+            CMDM_generate = FilterCMDM(CMDM_generate_frame)
+            self.windows.append(CMDM_generate)
+
+        #lastly, show DM filter window
+        CMDM_generate.root.pack(side="top", fill="both", expand=1)
+        self.current_state = CMDM_generate
+        self.create_nav_frame()
+
 
 # Base class for windows, holds parent and a number of frames
 class Window():
@@ -221,6 +250,17 @@ class Window():
         
         impedance_xcap_1 = Capacitor_model.Cap(file_path)
         impedance_xcap_1.piecewise_linear(DM_base.freq)
+
+    def select_file_cap_2x(self):
+        global impedance_xcap2, DM_base
+        file_path = filedialog.askopenfilename(filetypes=[(".csv","*.csv")])
+
+        if file_path == "":
+            messagebox.showerror("No File Selected", "Please select a valid data file")
+            return
+        
+        impedance_xcap2 = Capacitor_model.Cap(file_path)
+        impedance_xcap2.piecewise_linear(DM_base.freq)
 
 
     def select_file_cap_actual(self):
@@ -277,6 +317,10 @@ class Window():
         nonideal_toggle_x = None
         nonideal_toggle_y = None
 
+    def nonideal_sim_2xcaps(self):
+        global nonideal_toggle_x_2
+        nonideal_toggle_x_2 = 1
+
 
 # UI to allow user to select a measurement file
 class FileSelectWindow(Window):
@@ -314,9 +358,9 @@ class FileSelectWindow(Window):
         self.logo_img = tk.PhotoImage(file="./images/ge-appliances-a-haier-company-logo-vector.png").subsample(2)
 
         label = ttk.Label(img_frame, image=self.logo_img)
-        label.pack(side="bottom", anchor='center')
+        label.pack(side="top", anchor='center')
 
-        img_frame.pack(side="bottom", anchor='center')
+        img_frame.pack(side="top", anchor='center')
 
 
     # allows user to select a measurement file to load
@@ -409,6 +453,10 @@ class NoiseImpedanceWindow(Window):
 
         bt3_frame = ttk.Frame(option_frame)
 
+        bt4_frame = ttk.Frame(option_frame)
+
+        bt5_frame = ttk.Frame(option_frame)
+
         #filter_frame = ttk.Frame(options_frame)
 
         select_button = ttk.Button(bt2_frame, text="Select File", command=self.select_file_cap_x)
@@ -427,10 +475,20 @@ class NoiseImpedanceWindow(Window):
         label.pack(side="left")
         select_button = ttk.Button(bt3_frame, text="Ideal capacitor sim toggle", command=self.ideal_sim)
         select_button.pack(side="left")
-       
+
+        select_button = ttk.Button(bt4_frame, text="Non ideal capacitor sim toggle for two X capacitors", command=self.nonideal_sim_2xcaps)
+        select_button.pack(side="left")
+
+        select_button = ttk.Button(bt5_frame, text="Select file", command=self.select_file_cap_2x)
+        select_button.pack(side="left")
+
         bt2_frame.pack()
 
         bt3_frame.pack()
+
+        bt4_frame.pack()
+
+        bt5_frame.pack()
 
         button(filter_frame, "Calculate Noise Impedance", self.calculate_noise_impedance)
 
@@ -467,7 +525,7 @@ class NoiseImpedanceWindow(Window):
         self.graph_frame.pack(side="bottom", fill="both", expand=1)
 
     def calculate_noise_impedance(self):
-        global filter_choke, CM_base, CM_filtered, Noise_Floor, CM_Zs, DM_base, DM_filtered, DM_Zs, impedance_xcap, nonideal_toggle_x
+        global filter_choke, CM_base, CM_filtered, Noise_Floor, CM_Zs, DM_base, DM_filtered, DM_Zs, impedance_xcap, nonideal_toggle_x, impedance_xcap2, nonideal_toggle_x_2
 
         x_cap = float(self.x_cap.get()) * self.x_cap_unit.get()
         
@@ -486,6 +544,10 @@ class NoiseImpedanceWindow(Window):
         elif nonideal_toggle_x == 1:
             DM_Zs = emi.Noise_Impedance(DM_base, DM_filtered, Noise_Floor)
             DM_Zs.DM_calculation_actual(impedance_xcap, DM_base.freq)
+
+        elif nonideal_toggle_x_2 == 1:
+            DM_Zs = emi.Noise_Impedance(DM_base, DM_filtered, Noise_Floor)
+            DM_Zs.DM_calculation_actual_2xcaps(impedance_xcap, impedance_xcap2, DM_base.freq)
 
         #destroy existing frames
         for key in self.frames.keys():
@@ -527,6 +589,12 @@ class NoiseImpedanceWindow(Window):
         impedance_DM.plot(0, DM_Zs.freq, DM_Zs.geo_mean, "")
         impedance_DM.prettify(0, 'Impedance\n[$\Omega$]', 'DM Noise Impedance')
         impedance_DM.draw(self.frames["DM Impedance"])
+
+        baseline.log_scale_x(0)
+        filtered.log_scale_x(0)
+        CM_Choke_graph.log_scale_x(0)
+        impedance_CM.log_scale_x(0)
+        impedance_DM.log_scale_x(0)
 
         self.show_frame("Baseline")
 
@@ -766,13 +834,13 @@ class FilterCM(Window):
 
         if nonideal_toggle_y is None:
             if CM_Topo is None:
-                CM_est.CL_topology(y_cap, filter_choke)
+                CM_est.CL_topology_math(y_cap, filter_choke)
                 CM_est.find_Z_choke(CM_base, Limit.limit)
             elif CM_Topo == 1:
-                CM_est.LC_topology(y_cap, filter_choke)
+                CM_est.LC_topology_math(y_cap, filter_choke)
                 CM_est.find_Z_choke_LC(CM_base, Limit.limit)
             elif CM_Topo == 3:
-                CM_est.CLC_topology(y_cap, y_cap_1, filter_choke)
+                CM_est.CLC_topology_math(y_cap, y_cap_1, filter_choke)
                 CM_est.find_Z_choke_CLC(CM_base, Limit.limit)
             elif CM_Topo == 2:
             
@@ -827,13 +895,13 @@ class FilterCM(Window):
                 
         elif nonideal_toggle_y == 1:
             if CM_Topo is None:
-                CM_est.CL_topology_array_input(impedance_ycap, filter_choke)
+                CM_est.CL_topology_math_array_input(impedance_ycap, filter_choke)
                 CM_est.find_Z_choke(CM_base, Limit.limit)
             elif CM_Topo == 1:
-                CM_est.LC_topology_array_input(impedance_ycap, filter_choke)
+                CM_est.LC_topology_math_array_input(impedance_ycap, filter_choke)
                 CM_est.find_Z_choke_LC(CM_base, Limit.limit)
             elif CM_Topo == 3:
-                CM_est.CLC_topology_array_input(impedance_ycap, impedance_ycap_1, filter_choke)
+                CM_est.CLC_topology_math_array_input(impedance_ycap, impedance_ycap_1, filter_choke)
                 CM_est.find_Z_choke_CLC(CM_base, Limit.limit)
             elif CM_Topo == 2:
                 CM_est.CL_topology_math_array_input(impedance_ycap, filter_choke)
@@ -1080,25 +1148,6 @@ class FilterCM(Window):
         CM_Topo = 3
         self.show_suggested_impedance
         return
-    
-    """def nonideal_sim(self):
-        global nonideal_toggle_y
-        nonideal_toggle_y = 1
-
-    def ideal_sim(self):
-        global nonideal_toggle_y
-        nonideal_toggle_y = None"""
-
-    """def select_file_cap(self):
-        global impedance_xcap, DM_base
-        file_path = filedialog.askopenfilename(filetypes=[(".csv","*.csv")])
-
-        if file_path == "":
-            messagebox.showerror("No File Selected", "Please select a valid data file")
-            return
-        
-        impedance_ycap = Capacitor_model.Cap(file_path)
-        impedance_ycap.piecewise_linear(DM_base.freq)"""
 
     def gen_template_cap(self):
         Capacitor_model.open_template()
@@ -1193,7 +1242,7 @@ class FilterDM(Window):
 
         bt7_frame.pack()
 
-        bt8_frame = ttk.Frame(options_frame)
+        """bt8_frame = ttk.Frame(options_frame)
 
         select_button = ttk.Button(bt8_frame, text="Select File", command=self.select_file_cap_x)
         select_button.pack(side="left")
@@ -1212,7 +1261,7 @@ class FilterDM(Window):
         select_button = ttk.Button(bt9_frame, text="Select File", command=self.select_file_cap_x_1)
         select_button.pack(side="left")
 
-        bt9_frame.pack()
+        bt9_frame.pack()"""
 
         label = ttk.Label(options_frame, text="Push the topology button to find the minimum impedance curve to pass FCC")
         label.pack()
@@ -1305,9 +1354,9 @@ class FilterDM(Window):
             x_cap0 = float(self.x_cap_0.get()) * self.x_cap_unit.get()
             #y_cap = float(self.y_cap.get()) * self.y_cap_unit.get()
         elif nonideal_toggle_x == 1:
-            x_cap0 = impedance_xcap
-            x_cap_1 = impedance_xcap
-            x_cap_2 = impedance_xcap_1
+           #x_cap0 = impedance_xcap
+            #x_cap_1 = impedance_xcap
+            #x_cap_2 = impedance_xcap_1
             y_cap = impedance_ycap
 
     
@@ -1330,30 +1379,30 @@ class FilterDM(Window):
 
         if nonideal_toggle_x is None:
             if DM_Topo is None:
-                DM_est.PI_topology(x_cap0, y_cap, leakage_choke)
+                DM_est.PI_topology_math(y_cap, leakage_choke)
                 DM_est.find_Zx(DM_base, Limit.limit)
             elif DM_Topo == 1:
-                DM_est.PI2_topology(x_cap_1, x_cap_2, y_cap, leakage_choke)
+                DM_est.PI2_topology_math(y_cap, leakage_choke)
                 DM_est.find_Zx_PI2(DM_base, Limit.limit)
             elif DM_Topo == 2:
-                DM_est.CCL_topology(x_cap0, y_cap, leakage_choke)
+                DM_est.CCL_topology_math(y_cap, leakage_choke)
                 DM_est.find_Zx_CCL(DM_base, Limit.limit)
             elif DM_Topo == 3:
-                DM_est.LCC_topology(x_cap0, y_cap, leakage_choke)
+                DM_est.LCC_topology_math(y_cap, leakage_choke)
                 DM_est.find_Zx_LCC(DM_base, Limit.limit)
             elif DM_Topo == 5:
-                DM_est.CxLCy_topology(x_cap0, y_cap, leakage_choke)
+                DM_est.CxLCy_topology_math(y_cap, leakage_choke)
                 DM_est.find_Zx_CxLCy(DM_base, Limit.limit)
             elif DM_Topo == 4:
-                DM_est.PI_topology_math(x_cap0, y_cap, leakage_choke)
+                DM_est.PI_topology_math(y_cap, leakage_choke)
                 DM_est.find_Zx(DM_base, Limit.limit)
-                DM_est.PI2_topology_math(x_cap0, y_cap, leakage_choke)
+                DM_est.PI2_topology_math(y_cap, leakage_choke)
                 DM_est.find_Zx_PI2(DM_base, Limit.limit)
-                DM_est.CCL_topology_math(x_cap0, y_cap, leakage_choke)
+                DM_est.CCL_topology_math(y_cap, leakage_choke)
                 DM_est.find_Zx_CCL(DM_base, Limit.limit)
-                DM_est.LCC_topology_math(x_cap0, y_cap, leakage_choke)
+                DM_est.LCC_topology_math(y_cap, leakage_choke)
                 DM_est.find_Zx_LCC(DM_base, Limit.limit)
-                DM_est.CxLCy_topology_math(x_cap0, y_cap, leakage_choke)
+                DM_est.CxLCy_topology_math(y_cap, leakage_choke)
                 DM_est.find_Zx_CxLCy(DM_base, Limit.limit)
 
                 YLX = np.mean(DM_est.needed_Z_x)
@@ -1391,30 +1440,30 @@ class FilterDM(Window):
 
         elif nonideal_toggle_x == 1:
             if DM_Topo is None:
-                DM_est.PI_topology_array_input(x_cap0, impedance_ycap, leakage_choke)
+                DM_est.PI_topology_math_array_input(impedance_ycap, leakage_choke)
                 DM_est.find_Zx(DM_base, Limit.limit)
             elif DM_Topo == 1:
-                DM_est.PI2_topology_array_input(x_cap_1, x_cap_2, impedance_ycap, leakage_choke)
+                DM_est.PI2_topology_math_array_input(impedance_ycap, leakage_choke)
                 DM_est.find_Zx_PI2(DM_base, Limit.limit)
             elif DM_Topo == 2:
-                DM_est.CCL_topology_array_input(x_cap0, impedance_ycap, leakage_choke)
+                DM_est.CCL_topology_math_array_input(impedance_ycap, leakage_choke)
                 DM_est.find_Zx_CCL(DM_base, Limit.limit)
             elif DM_Topo == 3:
-                DM_est.LCC_topology_array_input(x_cap0, impedance_ycap, leakage_choke)
+                DM_est.LCC_topology_math_array_input(impedance_ycap, leakage_choke)
                 DM_est.find_Zx_LCC(DM_base, Limit.limit)
             elif DM_Topo == 5:
-                DM_est.CxLCy_topology_array_input(x_cap0, impedance_ycap, leakage_choke)
+                DM_est.CxLCy_topology_math_array_input(impedance_ycap, leakage_choke)
                 DM_est.find_Zx_CxLCy(DM_base, Limit.limit)
             elif DM_Topo == 4:
-                DM_est.PI_topology_math_array_input(x_cap0, impedance_ycap, leakage_choke)
+                DM_est.PI_topology_math_array_input(impedance_ycap, leakage_choke)
                 DM_est.find_Zx(DM_base, Limit.limit)
-                DM_est.PI2_topology_math_array_input(x_cap0, impedance_ycap, leakage_choke)
+                DM_est.PI2_topology_math_array_input(impedance_ycap, leakage_choke)
                 DM_est.find_Zx_PI2(DM_base, Limit.limit)
-                DM_est.CCL_topology_math_array_input(x_cap0, impedance_ycap, leakage_choke)
+                DM_est.CCL_topology_math_array_input(impedance_ycap, leakage_choke)
                 DM_est.find_Zx_CCL(DM_base, Limit.limit)
-                DM_est.LCC_topology_math_array_input(x_cap0, impedance_ycap, leakage_choke)
+                DM_est.LCC_topology_math_array_input(impedance_ycap, leakage_choke)
                 DM_est.find_Zx_LCC(DM_base, Limit.limit)
-                DM_est.CxLCy_topology_math_array_input(x_cap0, impedance_ycap, leakage_choke)
+                DM_est.CxLCy_topology_math_array_input(impedance_ycap, leakage_choke)
                 DM_est.find_Zx_CxLCy(DM_base, Limit.limit)
 
                 YLX = np.mean(DM_est.needed_Z_x)
@@ -1650,6 +1699,89 @@ class FilterDM(Window):
     """def DM_topology_actual_capacitor_impedance(self):
         global Imported_Z_cap
         Imported_Z_cap = 1"""
+    
+
+class FilterCMDM(Window):
+    def __init__(self, parent_frame: ttk.Frame) -> None:
+        super().__init__(parent_frame)
+
+        self.title = "Common and Differential Mode Filter Design"
+
+        self.interface_frame = ttk.Frame(self.root)
+        self.interface_frame.pack(side='left', fill="y")
+        self.graph_frame = ttk.Frame(self.root)
+        self.graph_frame.pack(side='right', fill='both', expand=1)
+
+        self.setup_interface()
+
+    def setup_interface(self):
+        # clear existing frame
+        for widget in self.interface_frame.winfo_children():
+            widget.destroy()
+
+        options_frame = ttk.Frame(self.interface_frame)
+        options_frame.pack()
+        image_frame = ttk.Frame(self.interface_frame)
+        image_frame.pack()
+
+        label = ttk.Label(options_frame, text="Press the graph button to combine mean and worst estimates from CM and DM filtet tabs")
+        label.pack()
+
+        bt_frame = ttk.Frame(options_frame)
+
+        select_button = ttk.Button(bt_frame, text="Graph", command=self.graph_combined)
+        select_button.pack(side="left")
+
+        bt_frame.pack()
+
+    def graph_combined(self):
+
+        graph_combined = Embedded_Graph(1)
+        combined_graph_array_mean = []
+        combined_graph_array_worst = []
+        for noise_point_DM, noise_point_CM in zip(DM_est.mean_estimate, CM_est.mean_estimate):
+            if noise_point_DM > noise_point_CM:
+                combined_graph_array_mean.append(noise_point_DM)
+            elif noise_point_DM < noise_point_CM:
+                combined_graph_array_mean.append(noise_point_CM)
+            elif noise_point_DM == noise_point_CM:
+                combined_graph_array_mean.append(noise_point_CM)
+        
+
+        for noise_point_DM_worst, noise_point_CM_worst in zip(DM_est.worst_estimate, CM_est.worst_estimate):
+            if noise_point_DM_worst > noise_point_CM_worst:
+                combined_graph_array_worst.append(noise_point_DM_worst)
+            elif noise_point_DM_worst < noise_point_CM_worst:
+                combined_graph_array_worst.append(noise_point_CM_worst)
+            elif noise_point_DM_worst == noise_point_CM_worst:
+                combined_graph_array_worst.append(noise_point_CM_worst)
+
+        
+        
+        Limit = emi.Noise_Limit(DM_base.freq)
+        
+
+        Limit_avg = emi.Noise_Limit_Avg(DM_base.freq)
+        
+
+        graph_combined.plot(0, DM_est.freq, combined_graph_array_mean, "Mean Noise Estimate")
+        graph_combined.plot(0, DM_est.freq, combined_graph_array_worst, "Worst Noise Estimate")
+        graph_combined.plot(0, Limit.freq, Limit.FCC, "Quasi FCC Limit")
+        graph_combined.plot(0, Limit_avg.freq, Limit_avg.FCC, "Avg FCC Avg Limit")
+        graph_combined.log_scale_x(0)
+        graph_combined.prettify(0, 'Noise\n[dB$\mu$V]', 'Combined Noise')
+
+        print("jello")
+        
+        graph_combined.draw(self.graph_frame)
+
+        worst_est_max = np.max(combined_graph_array_worst)
+        limit_fcc_max = np.max(Limit.FCC)
+        if worst_est_max > limit_fcc_max:
+            messagebox.showwarning("FCC limit exceeded")
+            return
+
+
 
 class UnitMenu(ttk.OptionMenu):
     def __init__(self, master: Misc | None, value: str | None = "?", value_dict: dict[str, float] | None = {"error" : 0.0}, **kwargs) -> None:
